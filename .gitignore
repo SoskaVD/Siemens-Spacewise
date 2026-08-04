@@ -1,0 +1,14 @@
+# Cache files
+__pycache__/
+
+
+# Distribution / packaging
+dist/
+build/
+
+# Large files
+*.zip
+
+# Data bases
+*.sqlite3
+*.db
