@@ -12,3 +12,7 @@ build/
 # Data bases
 *.sqlite3
 *.db
+
+# AI files
+.atl/
+AGENTS.md
