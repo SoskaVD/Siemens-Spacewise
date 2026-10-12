@@ -56,6 +56,20 @@ P.start_date = datetime(2026,1,1);  % Fecha de inicio de la simulación
 P.train_frac = 0.70;
 P.val_frac   = 0.15;
 
+%% Gestión de demanda (cargas flexibles desplazables en hora punta)
+P.fracFlexibleLAB  = 0.08;             % Fracción de LAB que se puede desplazar a horas valle
+P.fracFlexibleAUX  = 0.10;             % Fracción de AUX que se puede desplazar a horas valle
+
+%% Umbrales de eventos y calidad eléctrica
+P.max_events          = 4000;           % Máximo total de eventos por simulación
+P.max_events_per_type = 200;            % Máximo de eventos por tipo y dispositivo
+P.overload_threshold  = 0.97;           % Umbral de sobrecarga (fracción de P_nom)
+P.pf_quality_threshold = 0.80;          % Umbral de factor de potencia bajo
+
+%% Visualización y exportación
+P.plot_week_hours  = 168;               % Horas a graficar en reporte semanal (7 días × 24 h)
+P.csv_sample_limit = 2000;              % Límite de filas en CSV de muestra de mediciones
+
 %% Mediciones por dispositivo
 P.measurement_days = 365;              % Ventana de mediciones (días). Use 28 para campaña de 4 semanas.
 

@@ -15,6 +15,10 @@ scs = dt_scenario.definitions();
 
 conn = dt_db.open(dbPath);
 devTable = conn.fetch('SELECT * FROM devices ORDER BY device_id');
+if isempty(devTable)
+    error('run_simulations:no_devices', ...
+        'No hay dispositivos en la base de datos. Ejecute seed_devices antes de run_simulations.');
+end
 fprintf('Dispositivos cargados desde BD: %d\n', height(devTable));
 
 for i = 1:numel(scs)
@@ -35,7 +39,7 @@ for i = 1:numel(scs)
     dt_db.insertEvents(conn, sim_id, eventsT);
     dt_db.finishSimulation(conn, sim_id, 'DONE', sprintf('scenario %s', sc.scenario_code));
 
-    dt_plot.figures(base, ctrl, env, res, fullfile(outDir, sc.scenario_code));
+    dt_plot.figures(Psc, base, ctrl, env, res, fullfile(outDir, sc.scenario_code));
 
     fprintf('[%s] ahorro=%5.2f%%  peak %6.1f->%6.1f kW  payback=%4.2f años  VAN=%10.0f USD  (%.1fs)\n', ...
         sc.scenario_code, res.savPct, res.peakBase, res.peakCtrl, res.payback, res.VAN, toc(tStart));

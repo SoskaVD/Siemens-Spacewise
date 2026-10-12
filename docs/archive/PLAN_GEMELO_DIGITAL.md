@@ -17,7 +17,7 @@ Construir el motor del **gemelo digital energético** en MATLAB que:
 4. **Persiste todo** (dispositivos, mediciones, ambiente, escenarios, simulaciones, resultados/KPIs, alarmas) en una base de datos **SQLite** en la carpeta `bd/`.
 
 ```
-D:\Projects\Siemens\
+Siemens-Spacewise\
 ├── docs\                      → documentos del proyecto (este plan incluido)
 ├── bd\spacewise.db            → base SQLite generada por el gemelo
 └── matlab\

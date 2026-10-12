@@ -1,19 +1,40 @@
-% 01_init_db.m - Inicializa la base SQLite bd/spacewise.db con el esquema completo.
-% Uso: abrir desde matlab/scripts y ejecutar, o run('matlab/scripts/01_init_db.m').
+%% init_db.m - Inicializar base de datos del simulador
+% Script para crear la base de datos SQLite con el esquema del simulador
+% de maquinaria industrial.
+%
+% Uso:
+%   run('matlab/scripts/init_db.m')
 
-projectRoot = fileparts(fileparts(mfilename('fullpath')));
-addpath(fullfile(projectRoot, 'src'), fullfile(projectRoot, 'config'));
+% Get the root directory (2 levels up from this script) and cd to it
+% so that relative paths like 'data/spacewise.db' resolve correctly.
+scriptDir = fileparts(mfilename('fullpath'));
+rootDir = fullfile(scriptDir, '..', '..');
+cd(rootDir);
+rootDir = pwd;  % Canonicalize path after cd
+addpath(fullfile(rootDir, 'matlab', 'src'));
+addpath(fullfile(rootDir, 'matlab', 'config'));
 
-repoRoot = fileparts(projectRoot);
-dbPath = fullfile(repoRoot, 'bd', 'spacewise.db');
+fprintf('=== Inicializando base de datos del simulador ===\n\n');
 
-if ~exist(fullfile(repoRoot, 'bd'), 'dir')
-    mkdir(fullfile(repoRoot, 'bd'));
+% Ruta de la base de datos
+db_path = simulacion_params.DB_PATH;
+fprintf('Ruta de la base de datos: %s\n', db_path);
+
+% Verificar si ya existe
+if exist(db_path, 'file')
+    fprintf('⚠ La base de datos ya existe. Recreando...\n');
+    delete(db_path);
 end
 
-conn = dt_db.init(dbPath);
-dt_db.close(conn);
+% Inicializar base de datos
+fprintf('\nCreando base de datos...\n');
+try
+    conn = sim_db.init(db_path);
+    sim_db.close(conn);
+    fprintf('✓ Base de datos creada exitosamente en: %s\n', db_path);
+catch ME
+    fprintf('✗ Error al crear la base de datos: %s\n', ME.message);
+    rethrow(ME);
+end
 
-fprintf('Base inicializada: %s\n', dbPath);
-fprintf('Esquema creado: device_types, devices, scenarios, simulations,\n');
-fprintf('  environment, measurements, subsystem_profiles, simulation_results, events\n');
+fprintf('\n=== Inicialización completada ===\n');

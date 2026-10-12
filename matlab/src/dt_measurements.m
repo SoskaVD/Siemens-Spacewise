@@ -33,19 +33,20 @@ classdef dt_measurements
             facCell = cell(nDev, 1);
             statCell = cell(nDev, 1);
             for d = 1:nDev
-                if devTable.rated_power_kw(d) > 0
-                    [facCell{d}, statCell{d}] = ...
-                        dt_measurements.deviceState(devTable.type_code(d), ocup, actLAB, hour, weekday);
-                else
+                if strcmp(devTable.type_code{d}, 'meter')
+                    % Medidores SENTRON: siempre activos (miden, no consumen).
                     facCell{d} = ones(nsamp, 1);
                     statCell{d} = repmat("ON", nsamp, 1);
+                else
+                    [facCell{d}, statCell{d}] = ...
+                        dt_measurements.deviceState(devTable.type_code(d), ocup, actLAB, hour, weekday);
                 end
             end
 
             %% Renormalización: sum(P_dev) == P_subsistema por hora
             Ssub = containers.Map('KeyType', 'char', 'ValueType', 'any');
             for d = 1:nDev
-                if devTable.rated_power_kw(d) <= 0
+                if strcmp(devTable.type_code{d}, 'meter')
                     continue;
                 end
                 s = char(devTable.subsystem(d));
@@ -67,16 +68,20 @@ classdef dt_measurements
             row = 0;
             for d = 1:nDev
                 s = char(devTable.subsystem(d));
-                if strcmp(s, 'GENERAL')
-                    Psub = ctrl.total_final(1:nsamp);
+                isMeter = strcmp(devTable.type_code{d}, 'meter');
+                if isMeter
+                    % Medidores SENTRON: reportan la potencia total del área
+                    % que monitorean (no consumen energía, P_nom = 0).
+                    % MET-01 (GENERAL) mide el total del edificio;
+                    % MET-02..05 miden la suma de su subsistema.
+                    if strcmp(s, 'GENERAL')
+                        Pdev = ctrl.total_final(1:nsamp);
+                    else
+                        Pdev = ctrl.(s)(1:nsamp);
+                    end
                 else
-                    Psub = ctrl.(s)(1:nsamp);
-                end
-                if devTable.rated_power_kw(d) > 0
                     share = devTable.rated_power_kw(d)/cap(s);
-                    Pdev = Psub .* share .* facCell{d} ./ Ssub(s);
-                else
-                    Pdev = Psub;
+                    Pdev = ctrl.(s)(1:nsamp) .* share .* facCell{d} ./ Ssub(s);
                 end
                 Pdev = max(Pdev .* (1 + 0.01*randn(nsamp, 1)), 0);
 
@@ -113,32 +118,32 @@ classdef dt_measurements
                 'solar_wm2','weekday','hour'});
 
             %% Eventos (alarmas/anomalías)
-            evMax = 4000;
+            evMax = P.max_events;
             evDev = zeros(evMax, 1); evTs = strings(evMax, 1);
             evType = strings(evMax, 1); evSev = strings(evMax, 1);
             evMsg = strings(evMax, 1); evVal = zeros(evMax, 1);
             evRow = 0;
             for d = 1:nDev
-                if devTable.rated_power_kw(d) <= 0
+                if strcmp(devTable.type_code{d}, 'meter')
                     continue;
                 end
                 Pdev = PdevCell{d}; pfV = pfCell{d};
                 rated = devTable.rated_power_kw(d);
-                over = Pdev > rated*0.97;
-                qual = pfV < 0.80;
+                over = Pdev > rated*P.overload_threshold;
+                qual = pfV < P.pf_quality_threshold;
                 anom = Pdev > (mean(Pdev) + 3*std(Pdev));
                 ovIdx = find(over);
-                for k = 1:min(numel(ovIdx), 200)
+                for k = 1:min(numel(ovIdx), P.max_events_per_type)
                     evRow = evRow + 1;
                     if evRow > evMax, break; end
                     h = ovIdx(k);
                     evDev(evRow) = devTable.device_id(d); evTs(evRow) = ts(h);
                     evType(evRow) = "OVERLOAD"; evSev(evRow) = "HIGH";
-                    evMsg(evRow) = sprintf('%s supera el 97%% de su potencia nominal', devTable.device_code{d});
+                    evMsg(evRow) = sprintf('%s supera el %.0f%% de su potencia nominal', devTable.device_code{d}, P.overload_threshold*100);
                     evVal(evRow) = Pdev(h);
                 end
                 qIdx = find(qual);
-                for k = 1:min(numel(qIdx), 200)
+                for k = 1:min(numel(qIdx), P.max_events_per_type)
                     evRow = evRow + 1;
                     if evRow > evMax, break; end
                     h = qIdx(k);
@@ -148,7 +153,7 @@ classdef dt_measurements
                     evVal(evRow) = pfV(h);
                 end
                 aIdx = find(anom);
-                for k = 1:min(numel(aIdx), 200)
+                for k = 1:min(numel(aIdx), P.max_events_per_type)
                     evRow = evRow + 1;
                     if evRow > evMax, break; end
                     h = aIdx(k);
