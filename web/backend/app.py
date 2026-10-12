@@ -8,14 +8,22 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # python-dotenv is optional: only used to read a local .env
+    def load_dotenv(*args, **kwargs):
+        return False
 
 # Add backend directory to path so queries can be imported when running from project root
 _current_dir = Path(__file__).parent
 if str(_current_dir) not in sys.path:
     sys.path.insert(0, str(_current_dir))
+
+# Static dashboard (HTML/CSS/JS) served by this same Flask app at "/"
+FRONTEND_DIR = (_current_dir.parent / 'frontend').resolve()
 
 load_dotenv(_current_dir / '.env')
 
@@ -59,15 +67,36 @@ def create_app(db_path: str | None = None) -> Flask:
     origins = [o.strip() for o in configured_origins.split(',') if o.strip()]
     if not origins:
         # Safe default for local development only
-        origins = ['http://localhost:8000', 'http://localhost:5500', 'http://127.0.0.1:8000']
+        origins = ['http://localhost:8000', 'http://localhost:5500', 'http://127.0.0.1:8000',
+                   'http://localhost:5000', 'http://127.0.0.1:5000']
     CORS(app, origins=origins, supports_credentials=False)
 
     app.register_blueprint(api_bp)
 
+    _register_frontend(app)
     _register_error_handlers(app)
     _register_health_check(app)
 
     return app
+
+
+def _register_frontend(app: Flask) -> None:
+    """Serve the dashboard (web/frontend) from the same origin as the API.
+
+    Without these routes http://localhost:5000/ answers 404: the API blueprint
+    only lives under /api and nothing served index.html.
+    """
+    @app.route('/', methods=['GET'])
+    def index():
+        return send_from_directory(FRONTEND_DIR, 'index.html')
+
+    @app.route('/css/<path:filename>', methods=['GET'])
+    def frontend_css(filename):
+        return send_from_directory(FRONTEND_DIR / 'css', filename)
+
+    @app.route('/js/<path:filename>', methods=['GET'])
+    def frontend_js(filename):
+        return send_from_directory(FRONTEND_DIR / 'js', filename)
 
 
 def _configure_queries(app: Flask) -> None:
@@ -100,6 +129,7 @@ def _configure_queries(app: Flask) -> None:
 
 def _register_health_check(app: Flask) -> None:
     @app.route('/api/health', methods=['GET'])
+    @app.route('/health', methods=['GET'])
     def health():
         db_path = app.config.get('DATABASE_PATH')
         db_ok = Path(db_path).exists() if db_path else False

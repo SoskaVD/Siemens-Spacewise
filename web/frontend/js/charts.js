@@ -227,8 +227,10 @@ function renderTopMachinesChart(topMachines) {
 
     // Prepare data (take top 10)
     const top10 = topMachines.slice(0, 10);
-    const labels = top10.map(m => m.code);
-    const values = top10.map(m => m.energy);
+    // MATLAB guarda {machine_code, total_energy_kwh}; el resumen parcial del
+    // backend entrega {code, energy}. Se aceptan ambos formatos.
+    const labels = top10.map(m => m.code ?? m.machine_code);
+    const values = top10.map(m => m.energy ?? m.total_energy_kwh);
 
     topMachinesChart = new Chart(ctx, {
         type: 'bar',

@@ -23,7 +23,12 @@ sim_desc = 'Real-time simulation generating data every few seconds';
 seed = simulacion_params.DEFAULT_SEED;
 
 % Configuración de intervalo
-interval_seconds = 2;  % Segundos entre cada actualización (configurable: 1, 2, 5, 10)
+% Segundos entre cada actualización. El orquestador lo define con la variable
+% de entorno SIM_INTERVAL (opción --interval); por defecto 2.
+interval_seconds = str2double(getenv('SIM_INTERVAL'));
+if isnan(interval_seconds) || interval_seconds <= 0
+    interval_seconds = 2;
+end
 max_hours = inf;       % Infinite loop (Ctrl+C to stop)
 
 fprintf('Configuration:\n');

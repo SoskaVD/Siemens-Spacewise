@@ -60,8 +60,12 @@ classdef sim_engine
                 machines = sim_catalog.load();
                 nMachines = height(machines);
                 fprintf('         Loaded %d machines\n', nMachines);
+                inserted = sim_db.ensureMachines(conn, machines);
+                if inserted > 0
+                    fprintf('         Inserted %d machines into database\n', inserted);
+                end
                 sim_db.updateSimulationCounts(conn, sim_id, nMachines);
-                
+
                 % Step 4: Generate profiles for each machine (PARALLEL)
                 fprintf('  [4/8] Generating hourly profiles (parallel)...\n');
                 allMeasurements = cell(nMachines, 1);
@@ -241,8 +245,12 @@ classdef sim_engine
                 machines = sim_catalog.load();
                 nMachines = height(machines);
                 fprintf('         Loaded %d machines\n', nMachines);
+                inserted = sim_db.ensureMachines(conn, machines);
+                if inserted > 0
+                    fprintf('         Inserted %d machines into database\n', inserted);
+                end
                 sim_db.updateSimulationCounts(conn, sim_id, nMachines);
-                
+
                 % Step 4: Generate all profiles upfront (deterministic)
                 fprintf('  [5/6] Generating hourly profiles (this may take a moment)...\n');
                 profiles = cell(nMachines, 1);

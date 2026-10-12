@@ -29,7 +29,7 @@ def temp_db():
     # Load schema first
     schema_path = Path(__file__).parent.parent.parent.parent / 'data' / 'schema_simulator.sql'
     if schema_path.exists():
-        schema_sql = schema_path.read_text()
+        schema_sql = schema_path.read_text(encoding="utf-8")
         conn = sqlite3.connect(db_path)
         conn.executescript(schema_sql)
         conn.close()

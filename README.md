@@ -18,10 +18,11 @@ Sistema de simulación energética de maquinaria industrial con 110 equipos, gen
 - MATLAB R2026a o superior
 - Database Toolbox (para SQLite)
 - Agregar `matlab/bin` al PATH o definir `MATLAB_BIN`
+  (o copiar `.env.example` a `.env` y fijar `DEFAULT_MATLAB`; el `.env` no se sube al repositorio)
 
 ### Python
-- Python 3.9+
-- Dependencias en `requirements.txt`:
+- Python 3.10+
+- Dependencias en `requirements.txt` (Flask incluido):
   ```bash
   pip install -r requirements.txt
   ```
@@ -46,38 +47,51 @@ Sistema de simulación energética de maquinaria industrial con 110 equipos, gen
 
 ## Uso
 
-### 1. Ejecutar simulación completa (pipeline MATLAB)
+### 1. Lanzar todo con el orquestador (recomendado)
 
 ```bash
 python orquestador.py
 ```
 
-Esto ejecuta en orden:
+Es el modo `full` (por defecto). En un solo comando:
+1. Crea `data/spacewise.db` con el esquema si todavía no existe.
+2. Inicia la simulación continua de MATLAB (una hora simulada cada 2 s; se
+   reinicia sola si falla y retoma desde la última hora guardada).
+3. Inicia el servidor Flask, que sirve la API y el dashboard.
+4. Espera a que el servidor responda y abre `http://127.0.0.1:5000`.
+
+`Ctrl+C` detiene todos los procesos. Los registros quedan en `data/logs/`
+(`matlab.log` y `flask.log`).
+
+Opciones:
+```bash
+python orquestador.py --interval 5     # segundos reales por hora simulada
+python orquestador.py --no-browser     # no abrir el navegador
+python orquestador.py --mode continuous  # lo mismo, sin abrir el navegador
+python orquestador.py --mode once      # pipeline de un año completo y termina
+```
+
+El modo `once` ejecuta en orden:
 - `init_db.m`: Crea la base de datos SQLite con el esquema
 - `load_catalog.m`: Carga el catálogo de 110 máquinas
 - `run_simulation.m`: Ejecuta simulación de 8760 horas
 - `export_results.m`: Exporta resultados a CSV
 
-### 2. Iniciar backend web
+### 2. Dashboard
+
+Con el orquestador activo, abrir `http://127.0.0.1:5000`. Muestra la
+simulación en ejecución y se actualiza solo cada 5 segundos. El puerto se
+cambia con la variable de entorno `PORT`.
+
+### 3. Solo el servidor web (sin simulación)
 
 ```bash
-cd web/backend
-python app.py
+python web/backend/app.py
 ```
 
-El servidor se inicia en `http://localhost:5000`
-
-### 3. Acceder al panel web
-
-Abrir en el navegador:
-```
-http://localhost:5000
-```
-
-O abrir directamente:
-```
-web/frontend/index.html
-```
+Sirve el dashboard en `http://127.0.0.1:5000` con los datos que ya existan en
+`data/spacewise.db`. No hace falta abrir `web/frontend/index.html` a mano: el
+servidor lo entrega en `/`.
 
 ## Estructura del proyecto
 
@@ -112,7 +126,7 @@ Siemens-Spacewise/
 │   │   ├── routes.py             # Endpoints API
 │   │   ├── queries.py            # Consultas SQL parametrizadas
 │   │   └── tests/
-│   │       └── test_api.py       # Tests del backend (28 tests)
+│   │       └── test_api.py       # Tests del backend (API y dashboard)
 │   └── frontend/
 │       ├── index.html            # Panel principal
 │       ├── js/
@@ -143,7 +157,7 @@ Siemens-Spacewise/
 - `GET /api/simulations/<id>/export?format=csv&start=...&end=...` - Exportar datos
 
 ### Salud
-- `GET /health` - Estado del servidor
+- `GET /api/health` (alias `/health`) - Estado del servidor
 
 ## Testing
 
@@ -182,7 +196,7 @@ python -m pytest tests/test_integration.py -v
 
 ✅ Motor de simulación MATLAB completo  
 ✅ Persistencia SQLite funcional  
-✅ Tests unitarios (13 MATLAB + 28 Python)  
+✅ Tests Python: 39 pasan sin MATLAB; las pruebas MATLAB y de integración requieren MATLAB  
 ✅ Backend Flask API  
 ✅ Panel web con visualizaciones  
 ✅ Exportación CSV/JSON  

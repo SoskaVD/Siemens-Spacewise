@@ -159,7 +159,7 @@ class TestOrchestrator(unittest.TestCase):
         orchestrator = repo_root / "orquestador.py"
         
         # Read orchestrator source
-        source = orchestrator.read_text()
+        source = orchestrator.read_text(encoding="utf-8")
         
         # Verify new pipeline
         self.assertIn("init_db", source)

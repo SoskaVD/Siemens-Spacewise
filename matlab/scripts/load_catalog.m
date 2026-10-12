@@ -21,6 +21,7 @@ fprintf('Leyendo catálogo desde: %s\n', simulacion_params.CATALOG_PATH);
 try
     machines = sim_catalog.load();
     fprintf('✓ Catálogo cargado exitosamente\n');
+    fprintf('Loaded %d machines\n', height(machines));
 catch ME
     fprintf('✗ Error al cargar el catálogo: %s\n', ME.message);
     rethrow(ME);

@@ -91,6 +91,20 @@ classdef sim_db
             sqlwrite(conn, 'machines', T);
         end
 
+        function n = ensureMachines(conn, machines)
+            %ENSUREMACHINES Carga el catálogo en la tabla machines si está vacía.
+            %   Ningún script del pipeline llenaba esta tabla, por lo que el
+            %   backend (JOIN machines) y los análisis por categoría/criticidad
+            %   quedaban sin datos. Es idempotente: si ya hay máquinas no hace nada.
+            %   n = cantidad de máquinas insertadas (0 si ya existían).
+            n = 0;
+            r = conn.fetch('SELECT COUNT(*) AS cnt FROM machines');
+            if r.cnt == 0
+                sim_db.insertMachines(conn, machines);
+                n = height(machines);
+            end
+        end
+
         function sim_id = insertSimulation(conn, code, name, desc, seed)
             %INSERTSIMULATION Crea registro de simulación y devuelve su ID.
             %   Si el código ya existe, agrega sufijo de versión automáticamente.

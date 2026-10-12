@@ -1,13 +1,18 @@
-# SPACEWISE AI - Requisitos del orquestador (orquestador.py)
+# SPACEWISE AI - Dependencias Python (orquestador + dashboard)
+#
+# Instalación:  pip install -r requirements.txt
 #
 # Requisitos externos (no instalables con pip):
 #   - MATLAB R2026a (o superior) con Database Toolbox (función sqlite, JVM).
 #   - MATLAB debe estar en el PATH o definirse la variable de entorno MATLAB_BIN.
-#   - Python >= 3.9 (solo para el orquestador; MATLAB y la BD no dependen de él).
-#
-# Opcional: solo si se migra el orquestador a modo matlab.engine
-# (no recomendado: R2026a probablemente no soporta Python 3.14):
-# matlabengine>=9.16
+#   - Python >= 3.10 (el backend usa anotaciones de tipos "X | None").
 
-# Requisitos opcionales para desarrollo y pruebas:
-python-dotenv
+# Servidor web del dashboard (API + panel)
+flask>=3.0
+flask-cors>=4.0
+
+# Opcional: leer un archivo .env local (DEFAULT_MATLAB, PORT, ...)
+python-dotenv>=1.0
+
+# Pruebas
+pytest>=8.0

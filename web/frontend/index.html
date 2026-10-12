@@ -107,60 +107,95 @@
             : '/api';
 
         let currentSimulationId = null;
+        let currentSimulationStatus = null;
         let currentMachineCode = null;
+
+        // Segundos entre refrescos mientras hay una simulación en ejecución
+        const REFRESH_MS = 5000;
+        const STATUS_LABELS = {
+            RUNNING: 'en ejecución',
+            COMPLETED: 'completada',
+            STOPPED: 'detenida'
+        };
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async () => {
-            await loadSimulations();
-            await loadMachines();
             setupEventListeners();
+            await loadSimulations(true);
+            await loadMachines();
+            setInterval(refreshLive, REFRESH_MS);
         });
 
-        async function loadSimulations() {
+        // Refresco periódico: lista de simulaciones, máquinas (si aún no hay) y,
+        // si la simulación elegida sigue en ejecución, sus datos.
+        async function refreshLive() {
+            await loadSimulations(false);
+            if (document.getElementById('machine-select').options.length <= 1) {
+                await loadMachines(true);
+            }
+        }
+
+        async function loadSimulations(initial = true) {
             try {
-                showLoading(true);
+                if (initial) showLoading(true);
                 const data = await API.getSimulations();
                 const select = document.getElementById('simulation-select');
+                const previousId = currentSimulationId;
+                const usable = data.simulations.filter(s => STATUS_LABELS[s.status]);
+
                 select.innerHTML = '<option value="">Seleccionar simulación...</option>';
-                
-                data.simulations.forEach(sim => {
+                usable.forEach(sim => {
                     const option = document.createElement('option');
                     option.value = sim.simulation_id;
-                    option.textContent = `${sim.name} (${sim.simulation_code})`;
-                    if (sim.status === 'COMPLETED') {
-                        select.appendChild(option);
-                    }
+                    option.textContent =
+                        `${sim.name} (${sim.simulation_code}) - ${STATUS_LABELS[sim.status]}`;
+                    select.appendChild(option);
                 });
 
-                if (data.simulations.length > 0) {
-                    const completed = data.simulations.find(s => s.status === 'COMPLETED');
-                    if (completed) {
-                        select.value = completed.simulation_id;
-                        currentSimulationId = completed.simulation_id;
-                        await loadSimulationData();
+                if (usable.length === 0) {
+                    if (initial) {
+                        showError('Aún no hay simulaciones. Si el orquestador acaba de iniciar, '
+                            + 'los datos aparecerán en unos segundos.');
                     }
+                    return;
+                }
+
+                // Mantener la selección del usuario; si no hay, preferir la que está corriendo.
+                let chosen = usable.find(s => s.simulation_id === previousId)
+                    || usable.find(s => s.status === 'RUNNING')
+                    || usable[0];
+
+                select.value = chosen.simulation_id;
+                currentSimulationId = chosen.simulation_id;
+                currentSimulationStatus = chosen.status;
+
+                const changed = chosen.simulation_id !== previousId;
+                if (initial || changed || chosen.status === 'RUNNING') {
+                    await loadSimulationData(!(initial || changed));
                 }
             } catch (error) {
                 showError('Error al cargar simulaciones: ' + error.message);
             } finally {
-                showLoading(false);
+                if (initial) showLoading(false);
             }
         }
 
-        async function loadMachines() {
+        async function loadMachines(silent = false) {
             try {
                 const data = await API.getMachines();
                 const select = document.getElementById('machine-select');
+                const selected = select.value;
                 select.innerHTML = '<option value="">Todas las máquinas</option>';
-                
+
                 data.machines.forEach(machine => {
                     const option = document.createElement('option');
                     option.value = machine.machine_code;
                     option.textContent = `${machine.machine_code} - ${machine.name}`;
                     select.appendChild(option);
                 });
+                select.value = selected;
             } catch (error) {
-                showError('Error al cargar máquinas: ' + error.message);
+                if (!silent) showError('Error al cargar máquinas: ' + error.message);
             }
         }
 
@@ -192,12 +227,14 @@
             });
         }
 
-        async function loadSimulationData() {
+        async function loadSimulationData(silent = false) {
             if (!currentSimulationId) return;
 
             try {
-                showLoading(true);
-                hideError();
+                if (!silent) {
+                    showLoading(true);
+                    hideError();
+                }
 
                 // Load summary
                 const summary = await API.getSimulationSummary(currentSimulationId);
@@ -218,7 +255,7 @@
                 showError('Error al cargar datos: ' + error.message);
                 console.error('Load error:', error);
             } finally {
-                showLoading(false);
+                if (!silent) showLoading(false);
             }
         }
 
