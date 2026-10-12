@@ -68,16 +68,16 @@ Implementar un simulador completo de maquinaria industrial que genere perfiles d
 - [ ] **T4.4** Implementar `web/frontend/css/styles.css` (estilos)
 
 ### Fase 5: Integración y entrega
-- [ ] **T5.1** Actualizar `orquestador.py` para nuevo flujo
-- [ ] **T5.2** Tests de integración (pipeline completo)
-- [ ] **T5.3** Documentación (README, instrucciones de ejecución)
+- [x] **T5.1** Actualizar `orquestador.py` para nuevo flujo
+- [x] **T5.2** Tests de integración (pipeline completo)
+- [x] **T5.3** Documentación (README, instrucciones de ejecución)
 - [ ] **T5.4** Merge a main
 - [ ] **T5.5** Limpiar output del gemelo anterior (opcional)
 
 ## Progreso
-- **Estado:** 🟢 Fase 2 completada (Motor MATLAB)
-- **Tarea actual:** T2.11 (Tests unitarios del motor)
-- **Siguiente:** T3.1 (Backend web Flask)
+- **Estado:** 🟢 Fase 5 en progreso (T5.3 completado)
+- **Tarea actual:** T5.4 (Merge a main)
+- **Siguiente:** T5.5 (Limpieza opcional)
 
 ## Decisiones de diseño
 1. **Framework web:** Flask (más simple que FastAPI para MVP rápido)

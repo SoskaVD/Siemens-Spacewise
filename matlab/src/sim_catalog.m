@@ -60,16 +60,42 @@ classdef sim_catalog
                 error('SIM:CSVNotFound', 'Could not find CSV data table in catalog');
             end
             
-            % Collect all data lines until we hit a non-data line
+            % Collect all data lines, joining broken lines (some have category split across lines)
             dataLines = {};
+            accumulator = '';
             for i = dataStartIdx:numel(rawLines)
                 line = strtrim(rawLines{i});
                 if isempty(line), continue; end
-                % Stop if line doesn't match machine code pattern
-                if ~regexp(line, '^(HVAC|COMP|MOT|BOMB|ILUM|LAB|MAN|SERV|AUX)-\d{3}\|')
+                
+                % Stop if we hit the closing code block marker
+                if strcmp(line, '```')
+                    % Finalize the last accumulator before breaking
+                    if ~isempty(accumulator)
+                        fields = strsplit(accumulator, '|');
+                        if numel(fields) == 11
+                            dataLines{end+1} = accumulator; %#ok<AGROW>
+                        end
+                    end
                     break;
                 end
-                dataLines{end+1} = line; %#ok<AGROW>
+                
+                % Check if this is a new machine line (starts with code pattern)
+                isNewMachine = ~isempty(regexp(line, '^(HVAC|COMP|MOT|BOMB|ILUM|LAB|MAN|TI|SERV|AUX)-\d{3}\|', 'once'));
+                
+                if isNewMachine && ~isempty(accumulator)
+                    % Previous accumulator is complete, add it
+                    fields = strsplit(accumulator, '|');
+                    if numel(fields) == 11
+                        dataLines{end+1} = accumulator; %#ok<AGROW>
+                    end
+                    accumulator = line;
+                elseif isNewMachine
+                    % First machine line
+                    accumulator = line;
+                else
+                    % Continuation line, append to accumulator
+                    accumulator = [accumulator, ' ', line];
+                end
             end
             
             if isempty(dataLines)
@@ -172,11 +198,13 @@ classdef sim_catalog
                     'Fabricante/Modelo\s*\|\s*([^\|]+)', 'tokens', 'once');
                 if ~isempty(mfrMatch)
                     mfrStr = strtrim(mfrMatch{1});
-                    % Split manufacturer and model (typically "Brand Model")
-                    parts = strsplit(mfrStr, ' ', 2);
-                    detail.manufacturer = parts{1};
-                    if numel(parts) > 1
-                        detail.model = parts{2};
+                    % Split manufacturer and model on first space
+                    spaceMatch = regexp(mfrStr, '^\s*(\S+)\s+(.*)$', 'tokens', 'once');
+                    if ~isempty(spaceMatch)
+                        detail.manufacturer = spaceMatch{1};
+                        detail.model = strtrim(spaceMatch{2});
+                    else
+                        detail.manufacturer = mfrStr;
                     end
                 end
                 
@@ -463,7 +491,7 @@ classdef sim_catalog
                 cat = 'Laboratorios';
             elseif contains(rawLower, 'manufactura')
                 cat = 'Manufactura';
-            elseif contains(rawLower, 'servidor') || contains(rawLower, '\bti\b', 'regex')
+            elseif contains(rawLower, 'servidor') || ~isempty(regexp(rawLower, '\bti\b', 'once'))
                 cat = 'TI';
             elseif contains(rawLower, 'auxiliar')
                 cat = 'Auxiliares';
