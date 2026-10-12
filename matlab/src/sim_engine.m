@@ -38,6 +38,10 @@ classdef sim_engine
             
             simulacion_params.validateSeed(seed);
             
+            % Initialize outputs
+            sim_id = -1;
+            summary = struct();
+            
             fprintf('Starting simulation: %s\n', simCode);
             startTime = tic;
             

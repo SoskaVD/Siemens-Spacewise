@@ -93,15 +93,30 @@ classdef sim_db
 
         function sim_id = insertSimulation(conn, code, name, desc, seed)
             %INSERTSIMULATION Crea registro de simulación y devuelve su ID.
+            %   Si el código ya existe, agrega sufijo de versión automáticamente.
             if nargin < 5 || isempty(seed), seed = simulacion_params.DEFAULT_SEED; end
             if nargin < 4 || isempty(desc), desc = ''; end
+            
+            % Generate unique code if it already exists
+            uniqueCode = code;
+            version = 1;
+            while true
+                sqlCheck = sprintf('SELECT COUNT(*) as cnt FROM simulations WHERE simulation_code = ''%s''', ...
+                    sim_db.escapeSQL(uniqueCode));
+                result = conn.fetch(sqlCheck);
+                if result.cnt == 0
+                    break;
+                end
+                version = version + 1;
+                uniqueCode = sprintf('%s-v%d', code, version);
+            end
             
             % Use safe escaping for INSERT
             sql = sprintf(...
                 ['INSERT INTO simulations (simulation_code, name, description, ' ...
                  'engine_version, start_time, status, random_seed) ' ...
                  'VALUES (''%s'', ''%s'', ''%s'', ''%s'', datetime(''now''), ''RUNNING'', %d)'], ...
-                sim_db.escapeSQL(code), sim_db.escapeSQL(name), ...
+                sim_db.escapeSQL(uniqueCode), sim_db.escapeSQL(name), ...
                 sim_db.escapeSQL(desc), simulacion_params.ENGINE_VERSION, seed);
             conn.execute(sql);
             sim_id = sim_db.lastInsertId(conn);
