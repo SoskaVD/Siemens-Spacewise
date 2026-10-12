@@ -58,15 +58,16 @@ classdef sim_engine
                 fprintf('         Loaded %d machines\n', nMachines);
                 sim_db.updateSimulationCounts(conn, sim_id, nMachines);
                 
-                % Step 4: Generate profiles for each machine
-                fprintf('  [4/8] Generating hourly profiles...\n');
-                allMeasurements = {};
-                machineResults = cell(nMachines, 1);
+                % Step 4: Generate profiles for each machine (PARALLEL)
+                fprintf('  [4/8] Generating hourly profiles (parallel)...\n');
+                allMeasurements = cell(nMachines, 1);
                 startDate = datetime(2026, 1, 1);
                 
-                for i = 1:nMachines
-                    fprintf('         Processing machine %d/%d: %s\n', ...
-                        i, nMachines, machines.machine_code{i});
+                % Parallel profile generation
+                parfor i = 1:nMachines
+                    if mod(i, 10) == 0
+                        fprintf('         Progress: %d/%d machines\n', i, nMachines);
+                    end
                     
                     % Generate profile
                     profile = sim_machine.generate(machines(i,:), seed, startDate);
@@ -76,33 +77,38 @@ classdef sim_engine
                     profile.machine_code = repmat(machines.machine_code(i), height(profile), 1);
                     profile.category = repmat(machines.category{i}, height(profile), 1);
                     
-                    % Insert measurements
+                    allMeasurements{i} = profile;
+                end
+                fprintf('         All %d profiles generated\n', nMachines);
+                
+                % Step 5: Insert all measurements (sequential for DB safety)
+                fprintf('  [5/8] Inserting measurements to database...\n');
+                for i = 1:nMachines
+                    profile = allMeasurements{i};
                     sim_db.insertMeasurements(conn, sim_id, machines.machine_id(i), profile);
-                    
-                    allMeasurements{end+1} = profile; %#ok<AGROW>
-                    
-                    % Calculate machine results
-                    machineResult = sim_analysis.calculateMachineResults( ...
-                        sim_id, machines.machine_id(i), conn);
-                    machineResult.rank_by_energy = int32(i);  % Will be sorted later
-                    machineResults{i} = machineResult;
                 end
                 
-                % Step 5: Combine all measurements
-                fprintf('  [5/8] Combining measurements...\n');
+                % Step 6: Combine all measurements
+                fprintf('  [6/8] Combining measurements...\n');
                 allMeasTable = vertcat(allMeasurements{:});
                 
-                % Step 6: Calculate hourly totals
-                fprintf('  [6/8] Calculating hourly totals...\n');
+                % Step 7: Calculate hourly totals and simulation results
+                fprintf('  [7/8] Calculating hourly totals and results...\n');
                 hourlyTotals = sim_analysis.calculateHourlyTotals(allMeasTable);
                 sim_db.insertHourlyTotals(conn, sim_id, hourlyTotals);
                 
-                % Step 7: Calculate simulation results
-                fprintf('  [7/8] Calculating simulation results...\n');
                 results = sim_analysis.calculateSimulationResults(sim_id, conn);
                 sim_db.insertSimulationResults(conn, sim_id, results);
                 
-                % Insert machine results
+                % Calculate machine results
+                machineResults = cell(nMachines, 1);
+                parfor i = 1:nMachines
+                    machineResult = sim_analysis.calculateMachineResults( ...
+                        sim_id, machines.machine_id(i), conn);
+                    machineResult.rank_by_energy = int32(i);
+                    machineResults{i} = machineResult;
+                end
+                
                 machineResultsTable = sim_engine.machineResultsToTable(machineResults);
                 sim_db.insertMachineResults(conn, sim_id, machineResultsTable);
                 
