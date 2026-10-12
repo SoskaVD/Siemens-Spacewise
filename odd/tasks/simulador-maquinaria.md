@@ -75,9 +75,27 @@ Implementar un simulador completo de maquinaria industrial que genere perfiles d
 - [x] **T5.5** Limpiar output del gemelo anterior (archivos movidos a docs/archive/)
 
 ## Progreso
-- **Estado:** 🟢 **COMPLETADO**
-- **Merge a main:** ec3485a → 8ead125 (merge commit)
-- **Rama eliminada:** feature/simulador-maquinaria
+- **Estado:** ✅ **COMPLETADO 100%**
+- **Merge a main:** 2026-10-12 (commit 3d04531)
+- **Rama feature:** Eliminada
+- **Total de archivos creados:** 31
+- **Total de líneas de código:** ~6,465
+
+## Resumen Final
+- ✅ Motor MATLAB: 110 máquinas, 8760 horas, perfiles realistas
+- ✅ Base de datos SQLite: 7 tablas, índices optimizados
+- ✅ Backend Flask: 7 endpoints, 28 tests pasando
+- ✅ Frontend HTML: Dashboard con Chart.js, responsive, accesible
+- ✅ Tests: MATLAB (13) + Python (28) + Integración
+- ✅ Documentación: README completo, API docs, instrucciones de uso
+- ✅ Seguridad: SQL parametrizado, validación de inputs, CORS
+- ✅ Exportación: CSV/JSON con filtros por fecha
+
+## Próximos Pasos (opcionales)
+- Importar datos reales para comparación
+- Agregar más escenarios de simulación
+- Implementar autenticación en el backend
+- Agregar gráficos de predicción ML
 
 ## Decisiones de diseño
 1. **Framework web:** Flask (más simple que FastAPI para MVP rápido)
