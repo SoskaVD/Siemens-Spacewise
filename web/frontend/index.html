@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Maquinaria Industrial - Siemens Spacewise</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Simulador de Maquinaria Industrial</h1>
+            <p class="subtitle">Siemens Spacewise - Análisis de Consumo Energético</p>
+        </div>
+    </header>
+
+    <main>
+        <section class="controls-panel" aria-label="Controles de filtro">
+            <div class="control-group">
+                <label for="simulation-select">Simulación:</label>
+                <select id="simulation-select" aria-label="Seleccionar simulación">
+                    <option value="">Cargando...</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="machine-select">Máquina (opcional):</label>
+                <select id="machine-select" aria-label="Seleccionar máquina específica">
+                    <option value="">Todas las máquinas</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="start-date">Fecha inicio:</label>
+                <input type="date" id="start-date" aria-label="Fecha de inicio">
+            </div>
+
+            <div class="control-group">
+                <label for="end-date">Fecha fin:</label>
+                <input type="date" id="end-date" aria-label="Fecha de fin">
+            </div>
+
+            <div class="control-group">
+                <button id="apply-filters" aria-label="Aplicar filtros">Aplicar Filtros</button>
+                <button id="export-csv" aria-label="Exportar datos como CSV">Exportar CSV</button>
+            </div>
+        </section>
+
+        <section class="summary-panel" aria-label="Resumen de KPIs">
+            <div class="kpi-card">
+                <h3>Energía Total</h3>
+                <p class="kpi-value" id="kpi-total-energy">-</p>
+                <p class="kpi-unit">kWh</p>
+            </div>
+            <div class="kpi-card">
+                <h3>Potencia Promedio</h3>
+                <p class="kpi-value" id="kpi-avg-power">-</p>
+                <p class="kpi-unit">kW</p>
+            </div>
+            <div class="kpi-card">
+                <h3>Potencia Pico</h3>
+                <p class="kpi-value" id="kpi-peak-power">-</p>
+                <p class="kpi-unit">kW</p>
+            </div>
+            <div class="kpi-card">
+                <h3>Máquinas Activas</h3>
+                <p class="kpi-value" id="kpi-active-machines">-</p>
+                <p class="kpi-unit">unidades</p>
+            </div>
+        </section>
+
+        <section class="charts-container" aria-label="Visualizaciones">
+            <div class="chart-wrapper">
+                <h2>Consumo Horario (8760 horas)</h2>
+                <canvas id="hourly-chart" aria-label="Gráfico de consumo horario"></canvas>
+            </div>
+
+            <div class="chart-row">
+                <div class="chart-wrapper half">
+                    <h2>Consumo por Categoría</h2>
+                    <canvas id="category-chart" aria-label="Gráfico de consumo por categoría"></canvas>
+                </div>
+                <div class="chart-wrapper half">
+                    <h2>Top 10 Máquinas</h2>
+                    <canvas id="top-machines-chart" aria-label="Gráfico de máquinas con mayor consumo"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <div id="error-display" class="error-message" role="alert" aria-live="assertive"></div>
+        <div id="loading-indicator" class="loading" aria-live="polite">
+            <span>Cargando datos...</span>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Siemens Spacewise. Simulador de Maquinaria Industrial v1.0</p>
+    </footer>
+
+    <script src="js/api.js"></script>
+    <script src="js/charts.js"></script>
+    <script>
+        // Initialize application
+        const API_BASE = window.location.origin.includes('5500') || window.location.origin.includes('8000')
+            ? 'http://localhost:5000/api'
+            : '/api';
+
+        let currentSimulationId = null;
+        let currentMachineCode = null;
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadSimulations();
+            await loadMachines();
+            setupEventListeners();
+        });
+
+        async function loadSimulations() {
+            try {
+                showLoading(true);
+                const data = await API.getSimulations();
+                const select = document.getElementById('simulation-select');
+                select.innerHTML = '<option value="">Seleccionar simulación...</option>';
+                
+                data.simulations.forEach(sim => {
+                    const option = document.createElement('option');
+                    option.value = sim.simulation_id;
+                    option.textContent = `${sim.name} (${sim.simulation_code})`;
+                    if (sim.status === 'COMPLETED') {
+                        select.appendChild(option);
+                    }
+                });
+
+                if (data.simulations.length > 0) {
+                    const completed = data.simulations.find(s => s.status === 'COMPLETED');
+                    if (completed) {
+                        select.value = completed.simulation_id;
+                        currentSimulationId = completed.simulation_id;
+                        await loadSimulationData();
+                    }
+                }
+            } catch (error) {
+                showError('Error al cargar simulaciones: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadMachines() {
+            try {
+                const data = await API.getMachines();
+                const select = document.getElementById('machine-select');
+                select.innerHTML = '<option value="">Todas las máquinas</option>';
+                
+                data.machines.forEach(machine => {
+                    const option = document.createElement('option');
+                    option.value = machine.machine_code;
+                    option.textContent = `${machine.machine_code} - ${machine.name}`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                showError('Error al cargar máquinas: ' + error.message);
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('simulation-select').addEventListener('change', async (e) => {
+                currentSimulationId = e.target.value ? parseInt(e.target.value) : null;
+                if (currentSimulationId) {
+                    await loadSimulationData();
+                }
+            });
+
+            document.getElementById('apply-filters').addEventListener('click', async () => {
+                if (currentSimulationId) {
+                    await loadSimulationData();
+                }
+            });
+
+            document.getElementById('export-csv').addEventListener('click', () => {
+                if (!currentSimulationId) {
+                    showError('Seleccione una simulación primero');
+                    return;
+                }
+                const startDate = document.getElementById('start-date').value;
+                const endDate = document.getElementById('end-date').value;
+                let url = `${API_BASE}/simulations/${currentSimulationId}/export?format=csv`;
+                if (startDate) url += `&start=${startDate}`;
+                if (endDate) url += `&end=${endDate}`;
+                window.open(url, '_blank');
+            });
+        }
+
+        async function loadSimulationData() {
+            if (!currentSimulationId) return;
+
+            try {
+                showLoading(true);
+                hideError();
+
+                // Load summary
+                const summary = await API.getSimulationSummary(currentSimulationId);
+                updateKPIs(summary);
+
+                // Load hourly data
+                const hourly = await API.getHourlyTotals(currentSimulationId);
+                renderHourlyChart(hourly.data);
+
+                // Load category and top machines from summary
+                const categoryData = JSON.parse(summary.energy_by_category_json || '{}');
+                renderCategoryChart(categoryData);
+
+                const topMachines = JSON.parse(summary.top_machines_json || '[]');
+                renderTopMachinesChart(topMachines);
+
+            } catch (error) {
+                showError('Error al cargar datos: ' + error.message);
+                console.error('Load error:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function updateKPIs(summary) {
+            document.getElementById('kpi-total-energy').textContent = 
+                formatNumber(summary.total_energy_kwh, 0);
+            document.getElementById('kpi-avg-power').textContent = 
+                formatNumber(summary.avg_power_kw, 2);
+            document.getElementById('kpi-peak-power').textContent = 
+                formatNumber(summary.peak_power_kw, 2);
+            document.getElementById('kpi-active-machines').textContent = 
+                summary.total_machines || 0;
+        }
+
+        function formatNumber(value, decimals = 2) {
+            if (value === null || value === undefined) return '-';
+            return Number(value).toLocaleString('es-ES', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading-indicator').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-display');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function hideError() {
+            document.getElementById('error-display').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

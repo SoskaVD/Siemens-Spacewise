@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Orquestador del gemelo digital SPACEWISE AI.
+"""Orquestador del simulador de maquinaria industrial SPACEWISE AI.
 
 Al ejecutarse inicia el pipeline completo de MATLAB:
-    init_db -> seed_devices -> run_simulations -> query_reports
+    init_db -> load_catalog -> run_simulation -> export_results
 
-init_db borra y recrea bd/spacewise.db (reset limpio) para evitar datos
+init_db borra y recrea data/spacewise.db (reset limpio) para evitar datos
 duplicados entre corridas.
 
 Requisitos: MATLAB R2026a+ con Database Toolbox, en el PATH o definiendo la
@@ -20,11 +20,14 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from dotenv import load_dotenv
 
+
+load_dotenv()
 REPO_ROOT = Path(__file__).resolve().parent
 SCRIPTS_DIR = REPO_ROOT / "matlab" / "scripts"
-SCRIPTS = ["init_db", "seed_devices", "run_simulations", "query_reports"]
-DEFAULT_MATLAB = Path(r"C:\Program Files\MATLAB\R2026a\bin\matlab.exe")
+SCRIPTS = ["init_db", "load_catalog", "run_simulation", "export_results"]
+DEFAULT_MATLAB = os.getenv("DEFAULT_MATLAB", "/usr/local/MATLAB/R2026a/bin/matlab")
 
 
 def find_matlab() -> str:
@@ -69,7 +72,7 @@ def build_batch() -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Orquestador del gemelo digital SPACEWISE AI (MATLAB)."
+        description="Orquestador del simulador de maquinaria industrial SPACEWISE AI (MATLAB)."
     )
     parser.add_argument(
         "--timeout",
