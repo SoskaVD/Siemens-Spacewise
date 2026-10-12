@@ -42,64 +42,42 @@ classdef sim_catalog
             %PARSECXTABLE Extrae la tabla CSV resumen del markdown.
             %   La tabla CSV tiene formato pipe-delimited al final del archivo.
             
-            % Find the code block with CSV data
-            csvPattern = '```\n';
-            codeBlocks = strfind(content, csvPattern);
+            % Find lines with machine data (start with HVAC-, COMP-, MOT-, etc.)
+            rawLines = strsplit(content, newline);
             
-            % Find the actual data block (contains pipe-delimited data)
-            dataStart = 0;
-            dataEnd = 0;
-            for i = 1:numel(codeBlocks)
-                startPos = codeBlocks(i) + length(csvPattern);
-                % Look for end of this block
-                endPos = strfind(content(startPos:end), '```');
-                if isempty(endPos), continue; end
-                endPos = startPos + endPos(1) - 2;
-                
-                blockContent = content(startPos:endPos);
-                if contains(blockContent, '|') && contains(blockContent, 'HVAC-001')
-                    dataStart = startPos;
-                    dataEnd = endPos;
+            % Find the first data line (contains HVAC-001 or similar pattern)
+            dataStartIdx = 0;
+            for i = 1:numel(rawLines)
+                line = strtrim(rawLines{i});
+                % Check if line starts with a machine code pattern
+                if regexp(line, '^(HVAC|COMP|MOT|BOMB|ILUM|LAB|MAN|SERV|AUX)-\d{3}\|')
+                    dataStartIdx = i;
                     break;
                 end
             end
             
-            if dataStart == 0
+            if dataStartIdx == 0
                 error('SIM:CSVNotFound', 'Could not find CSV data table in catalog');
             end
             
-            rawText = content(dataStart:dataEnd);
-            rawLines = strsplit(rawText, newline);
-            
-            % Join broken lines: concatenate until we have 11 pipe-delimited fields
-            joinedLines = {};
-            accumulator = '';
-            
-            for i = 1:numel(rawLines)
+            % Collect all data lines until we hit a non-data line
+            dataLines = {};
+            for i = dataStartIdx:numel(rawLines)
                 line = strtrim(rawLines{i});
                 if isempty(line), continue; end
-                
-                % Skip the broken header line
-                if contains(line, 'r_carga') && ~contains(line, 'HVAC')
-                    continue;
+                % Stop if line doesn't match machine code pattern
+                if ~regexp(line, '^(HVAC|COMP|MOT|BOMB|ILUM|LAB|MAN|SERV|AUX)-\d{3}\|')
+                    break;
                 end
-                
-                if isempty(accumulator)
-                    accumulator = line;
-                else
-                    accumulator = [accumulator, ' ', line];
-                end
-                
-                % Count pipe separators
-                nPipes = sum(accumulator == '|');
-                if nPipes >= 10  % 11 fields = 10 separators
-                    joinedLines{end+1} = accumulator; %#ok<AGROW>
-                    accumulator = '';
-                end
+                dataLines{end+1} = line; %#ok<AGROW>
+            end
+            
+            if isempty(dataLines)
+                error('SIM:CSVNotFound', 'No valid CSV data lines found');
             end
             
             % Parse each line into fields
-            nLines = numel(joinedLines);
+            nLines = numel(dataLines);
             codes = cell(nLines, 1);
             names = cell(nLines, 1);
             categories = cell(nLines, 1);
@@ -113,7 +91,7 @@ classdef sim_catalog
             criticalities = cell(nLines, 1);
             
             for i = 1:nLines
-                fields = strsplit(joinedLines{i}, '|');
+                fields = strsplit(dataLines{i}, '|');
                 if numel(fields) < 11
                     warning('SIM:MalformedCSVLine', 'Line %d has %d fields, expected 11', i, numel(fields));
                     continue;
