@@ -67,9 +67,15 @@ def console_encoding() -> str:
 
 
 def build_batch() -> str:
-    """Construye el comando -batch: cd a scripts y ejecuta los pasos en orden."""
+    """Construye el comando -batch: agrega paths y ejecuta los pasos en orden."""
+    # Agregar paths a src y config ANTES de ejecutar scripts
+    src_path = REPO_ROOT / "matlab" / "src"
+    config_path = REPO_ROOT / "matlab" / "config"
+    add_paths = f"addpath('{src_path.as_posix()}'); addpath('{config_path.as_posix()}');"
+    
+    # cd a scripts y ejecutar los pasos
     steps = "; ".join(SCRIPTS)
-    return f"cd('{SCRIPTS_DIR.as_posix()}'); {steps};"
+    return f"{add_paths} cd('{SCRIPTS_DIR.as_posix()}'); {steps};"
 
 
 def run_once(matlab: str, timeout: int) -> int:

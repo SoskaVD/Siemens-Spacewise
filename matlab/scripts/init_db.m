@@ -21,13 +21,8 @@ fprintf('Ruta de la base de datos: %s\n', db_path);
 
 % Verificar si ya existe
 if exist(db_path, 'file')
-    fprintf('⚠ La base de datos ya existe.\n');
-    fprintf('¿Desea eliminarla y crear una nueva? (s/n): ');
-    respuesta = input('', 's');
-    if ~strcmpi(respuesta, 's')
-        fprintf('Operación cancelada.\n');
-        return;
-    end
+    fprintf('⚠ La base de datos ya existe. Recreando...\n');
+    delete(db_path);
 end
 
 % Inicializar base de datos
