@@ -100,9 +100,13 @@ classdef sim_engine
                 results = sim_analysis.calculateSimulationResults(sim_id, conn);
                 sim_db.insertSimulationResults(conn, sim_id, results);
                 
-                % Calculate machine results
+                % Calculate machine results (sequential - DB queries)
+                fprintf('         Calculating machine results...\n');
                 machineResults = cell(nMachines, 1);
-                parfor i = 1:nMachines
+                for i = 1:nMachines
+                    if mod(i, 10) == 0
+                        fprintf('         Progress: %d/%d machines\n', i, nMachines);
+                    end
                     machineResult = sim_analysis.calculateMachineResults( ...
                         sim_id, machines.machine_id(i), conn);
                     machineResult.rank_by_energy = int32(i);

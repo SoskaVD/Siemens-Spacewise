@@ -88,8 +88,16 @@ classdef sim_analysis
             %   results = sim_analysis.calculateSimulationResults(sim_id, conn)
             
             % Query hourly totals
+            % Use explicit columns to avoid NULL values in nullable columns
+            % (machine_count, avg_load_factor, peak_power_kw, peak_machine_id)
+            % which cause sqlite.fetch to crash.
             sql = sprintf(...
-                'SELECT * FROM hourly_totals WHERE simulation_id = %d ORDER BY hour_index', ...
+                ['SELECT ts, hour_index, total_power_kw, total_energy_kwh, ' ...
+                 'hvac_power_kw, compressors_power_kw, motors_power_kw, ' ...
+                 'pumps_power_kw, lighting_power_kw, lab_power_kw, ' ...
+                 'manufacturing_power_kw, it_power_kw, auxiliary_power_kw ' ...
+                 'FROM hourly_totals WHERE simulation_id = %d ' ...
+                 'ORDER BY hour_index'], ...
                 sim_id);
             hourlyTotals = conn.fetch(sql);
             
@@ -154,8 +162,12 @@ classdef sim_analysis
             %   machineResult = sim_analysis.calculateMachineResults(sim_id, machine_id, conn)
             
             % Query measurements for this machine
+            % Use explicit columns to avoid NULL values in nullable columns
+            % (power_factor, current_a, thd_pct, voltage_v, operation_state,
+            % cycle_phase) which cause sqlite.fetch to crash.
             sql = sprintf(...
-                ['SELECT * FROM machine_measurements WHERE simulation_id = %d ' ...
+                ['SELECT ts, active_power_kw, energy_kwh, load_factor ' ...
+                 'FROM machine_measurements WHERE simulation_id = %d ' ...
                  'AND machine_id = %d ORDER BY hour_index'], ...
                 sim_id, machine_id);
             measurements = conn.fetch(sql);
@@ -173,10 +185,23 @@ classdef sim_analysis
             operatingHours = sum(measurements.active_power_kw > 0);
             avgLoadFactor = mean(measurements.load_factor(measurements.active_power_kw > 0));
             
-            % Rated power (query from machines table)
+            % Rated power (query from machines table, fallback: estimate from measurements)
+            % The machines catalog may not be inserted into the DB at this point.
+            % Use the relationship: active_power ≈ rated_power * load_factor
+            % so rated_power ≈ active_power / load_factor (median across operating hours).
             sqlMachine = sprintf('SELECT rated_power_kw FROM machines WHERE machine_id = %d', machine_id);
             machineData = conn.fetch(sqlMachine);
-            ratedPower = machineData.rated_power_kw;
+            if isempty(machineData) || isempty(machineData.rated_power_kw)
+                runningMask = (measurements.load_factor > 0);
+                if any(runningMask)
+                    ratedPower = median(measurements.active_power_kw(runningMask) ./ ...
+                                        measurements.load_factor(runningMask));
+                else
+                    ratedPower = peakPower;
+                end
+            else
+                ratedPower = machineData.rated_power_kw(1);
+            end
             
             % Capacity factor = actual energy / max possible energy
             maxPossibleEnergy = ratedPower * simulacion_params.HOURS_PER_YEAR;
@@ -189,10 +214,23 @@ classdef sim_analysis
             hourlyPattern = sim_analysis.getMachineHourlyPattern(measurements);
             
             % Get total simulation energy for share calculation
+            % simulation_results may not be populated yet (calculated after all machines).
+            % Fallback: sum energy from machine_measurements directly.
             sqlTotal = sprintf(...
                 'SELECT total_energy_kwh FROM simulation_results WHERE simulation_id = %d', sim_id);
             totalResult = conn.fetch(sqlTotal);
-            totalSimEnergy = totalResult.total_energy_kwh;
+            if isempty(totalResult) || isempty(totalResult.total_energy_kwh)
+                sqlTotalFallback = sprintf(...
+                    'SELECT SUM(energy_kwh) as total FROM machine_measurements WHERE simulation_id = %d', sim_id);
+                totalFallback = conn.fetch(sqlTotalFallback);
+                if isempty(totalFallback) || isempty(totalFallback.total)
+                    totalSimEnergy = totalEnergy;
+                else
+                    totalSimEnergy = totalFallback.total(1);
+                end
+            else
+                totalSimEnergy = totalResult.total_energy_kwh(1);
+            end
             energySharePct = (totalEnergy / totalSimEnergy) * 100;
             
             % Build result struct
@@ -382,11 +420,11 @@ classdef sim_analysis
         function avgPF = calculateAvgPowerFactor(sim_id, conn)
             %CALCULATEAVGPOWERFACTOR Calcula factor de potencia promedio.
             sql = sprintf(...
-                'SELECT AVG(power_factor) as avg_pf FROM machine_measurements WHERE simulation_id = %d', ...
+                'SELECT COALESCE(AVG(power_factor), 0) as avg_pf FROM machine_measurements WHERE simulation_id = %d', ...
                 sim_id);
             
             result = conn.fetch(sql);
-            if isempty(result) || isnan(result.avg_pf)
+            if isempty(result) || result.avg_pf == 0
                 avgPF = NaN;
             else
                 avgPF = result.avg_pf;
@@ -396,11 +434,11 @@ classdef sim_analysis
         function avgTHD = calculateAvgTHD(sim_id, conn)
             %CALCULATEAVGTHD Calcula THD promedio.
             sql = sprintf(...
-                'SELECT AVG(thd_pct) as avg_thd FROM machine_measurements WHERE simulation_id = %d', ...
+                'SELECT COALESCE(AVG(thd_pct), 0) as avg_thd FROM machine_measurements WHERE simulation_id = %d', ...
                 sim_id);
             
             result = conn.fetch(sql);
-            if isempty(result) || isnan(result.avg_thd)
+            if isempty(result) || result.avg_thd == 0
                 avgTHD = NaN;
             else
                 avgTHD = result.avg_thd;
