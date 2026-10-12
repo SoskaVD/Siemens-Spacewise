@@ -9,5 +9,6 @@ repoRoot = fileparts(projectRoot);
 dbPath = fullfile(repoRoot, 'bd', 'spacewise.db');
 outDir = fullfile(projectRoot, 'output');
 
-dt_plot.fromDB(dbPath, outDir);
-dt_plot.exportCSV(dbPath, outDir);
+P = spacewise_params();
+dt_plot.fromDB(P, dbPath, outDir);
+dt_plot.exportCSV(P, dbPath, outDir);

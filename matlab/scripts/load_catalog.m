@@ -10,6 +10,7 @@
 scriptDir = fileparts(mfilename('fullpath'));
 rootDir = fullfile(scriptDir, '..', '..');
 cd(rootDir);
+rootDir = pwd;  % Canonicalize path after cd
 addpath(fullfile(rootDir, 'matlab', 'src'));
 addpath(fullfile(rootDir, 'matlab', 'config'));
 
