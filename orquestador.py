@@ -71,11 +71,13 @@ def build_batch() -> str:
     # Agregar paths a src y config ANTES de ejecutar scripts
     src_path = REPO_ROOT / "matlab" / "src"
     config_path = REPO_ROOT / "matlab" / "config"
-    add_paths = f"addpath('{src_path.as_posix()}'); addpath('{config_path.as_posix()}');"
+    scripts_path = REPO_ROOT / "matlab" / "scripts"
     
-    # cd a scripts y ejecutar los pasos
-    steps = "; ".join(SCRIPTS)
-    return f"{add_paths} cd('{SCRIPTS_DIR.as_posix()}'); {steps};"
+    add_paths = f"addpath('{src_path.as_posix()}'); addpath('{config_path.as_posix()}'); addpath('{scripts_path.as_posix()}');"
+    
+    # Ejecutar los pasos usando run() con rutas absolutas
+    steps = "; ".join([f"run('{(scripts_path / f'{script}.m').as_posix()}')" for script in SCRIPTS])
+    return f"{add_paths} {steps};"
 
 
 def run_once(matlab: str, timeout: int) -> int:

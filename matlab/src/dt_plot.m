@@ -6,12 +6,12 @@ classdef dt_plot
 
     methods (Static)
 
-        function figures(base, ctrl, env, res, outDir)
+        function figures(P, base, ctrl, env, res, outDir)
             %FIGURES Genera y guarda los gráficos de una simulación.
             if ~exist(outDir, 'dir')
                 mkdir(outDir);
             end
-            T = 168; % primera semana
+            T = P.plot_week_hours; % horas a graficar (default: 168 = 1 semana)
             t = env.ts(1:T);
 
             figure('Visible','off','Position',[100 100 900 500]);
@@ -58,7 +58,7 @@ classdef dt_plot
             end
         end
 
-        function fromDB(dbPath, outDir)
+        function fromDB(P, dbPath, outDir)
             %FROMDB Reporte comparativo E0 vs E5 desde la base SQLite.
             if ~exist(outDir, 'dir')
                 mkdir(outDir);
@@ -79,8 +79,8 @@ classdef dt_plot
             prof5 = conn.fetch(sprintf("SELECT ts, power_base_kw, power_ctrl_kw FROM subsystem_profiles WHERE simulation_id=%d AND subsystem='TOTAL' ORDER BY ts", simE5));
             t = datetime(prof5.ts);
             figure('Visible','off','Position',[100 100 900 500]);
-            plot(t(1:168), prof5.power_base_kw(1:168), 'LineWidth', 1.3); hold on;
-            plot(t(1:168), prof5.power_ctrl_kw(1:168), 'LineWidth', 1.3);
+            plot(t(1:P.plot_week_hours), prof5.power_base_kw(1:P.plot_week_hours), 'LineWidth', 1.3); hold on;
+            plot(t(1:P.plot_week_hours), prof5.power_ctrl_kw(1:P.plot_week_hours), 'LineWidth', 1.3);
             grid on; xlabel('Fecha'); ylabel('Potencia [kW]');
             title('Semana E0 (base) vs E5 (gemelo integral)');
             legend('Base (E0)','Control (E5)','Location','best');
@@ -122,7 +122,7 @@ classdef dt_plot
             dt_db.close(conn);
         end
 
-        function exportCSV(dbPath, outDir)
+        function exportCSV(P, dbPath, outDir)
             %EXPORTCSV Exporta los resultados de la base a CSV.
             if ~exist(outDir, 'dir')
                 mkdir(outDir);
@@ -133,7 +133,7 @@ classdef dt_plot
 
             sims = conn.fetch("SELECT s.scenario_code, sim.simulation_id FROM simulations sim JOIN scenarios s ON sim.scenario_id=s.scenario_id ORDER BY s.scenario_code");
             if height(sims) > 0
-                meas = conn.fetch(sprintf("SELECT m.* FROM measurements m WHERE m.simulation_id=%d ORDER BY m.device_id, m.ts LIMIT 2000", sims.simulation_id(1)));
+                meas = conn.fetch(sprintf("SELECT m.* FROM measurements m WHERE m.simulation_id=%d ORDER BY m.device_id, m.ts LIMIT %d", sims.simulation_id(1), P.csv_sample_limit));
                 writetable(meas, fullfile(outDir, 'mediciones_muestra.csv'));
                 ev = conn.fetch(sprintf("SELECT e.* FROM events e WHERE e.simulation_id=%d ORDER BY e.event_id", sims.simulation_id(1)));
                 writetable(ev, fullfile(outDir, 'eventos.csv'));

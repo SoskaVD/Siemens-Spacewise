@@ -1,9 +1,5 @@
 # SPACEWISE AI - Requisitos del orquestador (orquestador.py)
 #
-# El orquestador usa SOLO la biblioteca estándar de Python (>= 3.9).
-# No requiere paquetes pip: argparse, logging, os, pathlib, shutil,
-# subprocess, sys, time.
-#
 # Requisitos externos (no instalables con pip):
 #   - MATLAB R2026a (o superior) con Database Toolbox (función sqlite, JVM).
 #   - MATLAB debe estar en el PATH o definirse la variable de entorno MATLAB_BIN.
@@ -12,3 +8,6 @@
 # Opcional: solo si se migra el orquestador a modo matlab.engine
 # (no recomendado: R2026a probablemente no soporta Python 3.14):
 # matlabengine>=9.16
+
+# Requisitos opcionales para desarrollo y pruebas:
+python-dotenv

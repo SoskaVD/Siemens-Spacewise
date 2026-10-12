@@ -271,12 +271,6 @@ classdef sim_engine
                 maxHourLimit = min(maxHours, simulacion_params.HOURS_PER_YEAR);
                 
                 while currentHour < maxHourLimit
-                    % Extract this hour's data for all machines
-                    hourData = cell(nMachines, 1);
-                    for i = 1:nMachines
-                        hourData{i} = profiles{i}(currentHour + 1, :);
-                    end
-                    
                     % Insert measurements for each machine
                     for i = 1:nMachines
                         row = profiles{i}(currentHour + 1, :);
@@ -287,9 +281,74 @@ classdef sim_engine
                         sim_db.insertMeasurements(conn, sim_id, machines.machine_id(i), row);
                     end
                     
-                    % Calculate and insert hourly totals
-                    allHourMeas = vertcat(hourData{:});
-                    hourlyTotal = sim_analysis.calculateHourlyTotals(allHourMeas);
+                    % Calculate hourly totals directly (avoid vertcat with cell arrays)
+                    ts = profiles{1}.ts{currentHour + 1};
+                    hourIdx = int32(currentHour);
+                    totalPower = 0;
+                    totalEnergy = 0;
+                    machineCount = 0;
+                    sumLoadFactor = 0;
+                    peakPower = 0;
+                    peakMachineId = int32(0);
+                    
+                    % Category breakdown
+                    catData = zeros(1, 9);
+                    catNames = sim_analysis.getCategoryNames();
+                    
+                    for i = 1:nMachines
+                        row = profiles{i}(currentHour + 1, :);
+                        power = row.active_power_kw;
+                        energy = row.energy_kwh;
+                        loadFactor = row.load_factor;
+                        cat = row.category{1};
+                        
+                        totalPower = totalPower + power;
+                        totalEnergy = totalEnergy + energy;
+                        
+                        if power > 0
+                            machineCount = machineCount + 1;
+                            sumLoadFactor = sumLoadFactor + loadFactor;
+                        end
+                        
+                        if power > peakPower
+                            peakPower = power;
+                            peakMachineId = int32(machines.machine_id(i));
+                        end
+                        
+                        % Category breakdown
+                        for c = 1:numel(catNames)
+                            if strcmp(cat, catNames{c})
+                                catData(c) = catData(c) + power;
+                                break;
+                            end
+                        end
+                    end
+                    
+                    avgLoadFactor = 0;
+                    if machineCount > 0
+                        avgLoadFactor = sumLoadFactor / machineCount;
+                    end
+                    
+                    % Build hourly total table
+                    hourlyTotal = table();
+                    hourlyTotal.ts = string(ts);
+                    hourlyTotal.hour_index = hourIdx;
+                    hourlyTotal.total_power_kw = totalPower;
+                    hourlyTotal.total_energy_kwh = totalEnergy;
+                    hourlyTotal.hvac_power_kw = catData(1);
+                    hourlyTotal.compressors_power_kw = catData(2);
+                    hourlyTotal.motors_power_kw = catData(3);
+                    hourlyTotal.pumps_power_kw = catData(4);
+                    hourlyTotal.lighting_power_kw = catData(5);
+                    hourlyTotal.lab_power_kw = catData(6);
+                    hourlyTotal.manufacturing_power_kw = catData(7);
+                    hourlyTotal.it_power_kw = catData(8);
+                    hourlyTotal.auxiliary_power_kw = catData(9);
+                    hourlyTotal.machine_count = int32(machineCount);
+                    hourlyTotal.avg_load_factor = avgLoadFactor;
+                    hourlyTotal.peak_power_kw = peakPower;
+                    hourlyTotal.peak_machine_id = peakMachineId;
+                    
                     sim_db.insertHourlyTotals(conn, sim_id, hourlyTotal);
                     
                     % Update total hours

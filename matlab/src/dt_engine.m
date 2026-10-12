@@ -112,7 +112,7 @@ classdef dt_engine
             if sc.peak_mgmt
                 esPunta = hour >= 18 & hour <= 22;
                 exceso = max(ctrl.TOTAL - P.peak_limite_kw, 0);
-                desplazable = min(exceso, 0.08*ctrl.LAB + 0.10*ctrl.AUX);
+                desplazable = min(exceso, P.fracFlexibleLAB*ctrl.LAB + P.fracFlexibleAUX*ctrl.AUX);
                 desplazable(~esPunta) = 0;
                 ctrl.total_final = ctrl.TOTAL - desplazable;
                 EDesplazada = sum(desplazable);
