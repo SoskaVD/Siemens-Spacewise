@@ -5,9 +5,13 @@
 % Uso:
 %   run('matlab/scripts/run_simulation.m')
 
-% Agregar rutas necesarias
-addpath('matlab/src');
-addpath('matlab/config');
+% Get the root directory (2 levels up from this script) and cd to it
+% so that relative paths like 'data/spacewise.db' resolve correctly.
+scriptDir = fileparts(mfilename('fullpath'));
+rootDir = fullfile(scriptDir, '..', '..');
+cd(rootDir);
+addpath(fullfile(rootDir, 'matlab', 'src'));
+addpath(fullfile(rootDir, 'matlab', 'config'));
 
 fprintf('=== Simulador de Maquinaria Industrial ===\n');
 fprintf('Motor versión: %s\n', simulacion_params.ENGINE_VERSION);

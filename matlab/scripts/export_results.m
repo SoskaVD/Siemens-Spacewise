@@ -5,9 +5,13 @@
 % Uso:
 %   run('matlab/scripts/export_results.m')
 
-% Agregar rutas necesarias
-addpath('matlab/src');
-addpath('matlab/config');
+% Get the root directory (2 levels up from this script) and cd to it
+% so that relative paths like 'data/spacewise.db' resolve correctly.
+scriptDir = fileparts(mfilename('fullpath'));
+rootDir = fullfile(scriptDir, '..', '..');
+cd(rootDir);
+addpath(fullfile(rootDir, 'matlab', 'src'));
+addpath(fullfile(rootDir, 'matlab', 'config'));
 
 fprintf('=== Exportación de resultados ===\n\n');
 
