@@ -71,13 +71,13 @@ Implementar un simulador completo de maquinaria industrial que genere perfiles d
 - [x] **T5.1** Actualizar `orquestador.py` para nuevo flujo
 - [x] **T5.2** Tests de integración (pipeline completo)
 - [x] **T5.3** Documentación (README, instrucciones de ejecución)
-- [ ] **T5.4** Merge a main
-- [ ] **T5.5** Limpiar output del gemelo anterior (opcional)
+- [x] **T5.4** Merge a main
+- [x] **T5.5** Limpiar output del gemelo anterior (archivos movidos a docs/archive/)
 
 ## Progreso
-- **Estado:** 🟢 Fase 5 en progreso (T5.3 completado)
-- **Tarea actual:** T5.4 (Merge a main)
-- **Siguiente:** T5.5 (Limpieza opcional)
+- **Estado:** 🟢 **COMPLETADO**
+- **Merge a main:** ec3485a → 8ead125 (merge commit)
+- **Rama eliminada:** feature/simulador-maquinaria
 
 ## Decisiones de diseño
 1. **Framework web:** Flask (más simple que FastAPI para MVP rápido)
