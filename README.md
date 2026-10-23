@@ -41,6 +41,49 @@ python orquestador.py            # la máquina aparece sola en dashboard y expor
 - **Exportación**: CSV y JSON con filtros por fecha
 - **Importación de datos reales**: CSV de mediciones (`POST /api/import/real`) cargable desde el dashboard
 - **Comparación gemelo vs real**: Superposición horario simulado/real con MAPE y sesgo en el dashboard
+- **Ingesta continua (feed)**: `POST /api/ingest/hourly` alimenta un import vivo `LIVE-STREAM` con idempotencia por (máquina, hora)
+- **Estado estimado del gemelo**: `GET /api/machines/<code>/state` clasifica las últimas horas medidas en bandas (RUNNING/PARTIAL/STANDBY/OFF) y lo muestra en el dashboard
+- **Calibración con lazo de vuelta**: `POST /api/machines/<code>/calibrate` reescribe el `machine.json` (shares, load_factor, standby_pct, horario) desde mediciones reales, con backup `.bak` y traza `_calibration`
+- **Planta sintética reproducible**: `plant/` genera mediciones con ground-truth desviada del catálogo, para cerrar y demostrar el lazo sin hardware
+
+## Gemelo digital de lazo cerrado (shadow → twin)
+
+El sistema recorre los dos niveles de la escalera de gemelo digital: la **sombra** (comparar lo que el modelo dice contra lo que el medidor mide) y el **gemelo** (que la medición actualice el modelo — lazo bidireccional):
+
+```
+planta física          ingesta            estimación        calibración (lazo A)
+(SENTRON real   ──►  /api/ingest/hourly ──► /state en el ──► /calibrate reescribe
+ o planta            (LIVE-STREAM)          dashboard         machines/<CODE>/machine.json
+ sintética)                                                        │
+                                            re-simulación ◄───────┘ (MATLAB lee los
+                                            → MAPE menor            módulos calibrados)
+```
+
+- Cada `machines/<CODE>/machine.json` es un **mini-gemelo**: identidad propia + estado estimado + memoria de calibración (`_calibration` con `before/after` y `calibrated_from: import_id`) + salvaguarda de los valores originales (`machine.json.bak`, escrito solo la primera vez).
+- Los nombres de estado del `work_cycles` **nunca se renombran**: la calibración ajusta proporciones, preservando el contrato con MATLAB (incluidos los heredados como `n_plena`).
+
+### Demo sin hardware (planta sintética)
+
+`plant/` es el mundo físico simulado: mediciones horarias deterministas (seed = máquina+hora) deliberadamente desviadas del catálogo — turnos corridos, degradación de potencia 1.05–1.25×, ruido, cortes. Sirve para desarrollar y demostrar el lazo sin acceso a maquinaria, y es **exactamente el mismo canal de API que usará un medidor real**:
+
+```bash
+# 1. Demo de lazo cerrado completo (autocontenido, no toca el worktree):
+.venv/bin/python plant/demo_closed_loop.py --hours 336
+#   → por máquina: MAPE de energía diaria ANTES → DESPUÉS (ej. 203% → 57%)
+
+# 2. O en vivo: servidor + stream + panel Gemelo
+python orquestador.py                        # o el backend Flask solo
+.venv/bin/python plant/feed_loop.py --hours 168 --interval 0.1 --machines HVAC-001
+#   → el dashboard muestra estado actual y el botón "Calibrar con datos reales"
+```
+
+### Cambiar de planta sintética a datos reales
+
+No hay que tocar el backend ni el dashboard:
+
+- **Un medidor/colector (SENTRON, Modbus gateway…)**: que haga `POST /api/ingest/hourly` con `{"records":[{machine_code, ts, active_power_kw}]}` por hora (mismo contrato que `feed_loop.py`).
+- **Un export histórico**: CSV con `machine_code,ts,active_power_kw` vía `POST /api/import/real` o el panel, y calibrar con `?import_id=<id>`.
+- Tras calibrar, **re-simular** (`python orquestador.py` o `run_simulation`) para que la comparación `GET /api/simulations/<id>/compare` refleje el modelo corregido.
 
 ## Requisitos
 
@@ -131,7 +174,12 @@ Siemens-Spacewise/
 │   ├── _TEMPLATE/                  # Plantilla estándar de módulo de máquina
 │   │   ├── machine.json
 │   │   └── _README.md
-│   └── <CODE>/machine.json         # 110 módulos (uno por máquina)
+│   └── <CODE>/machine.json         # 110 módulos (uno por máquina = mini-gemelo)
+├── plant/                          # Mundo físico simulado (sin hardware)
+│   ├── plant_sim.py                # Planta sintética determinista con ground-truth
+│   ├── calibration.py              # Lazo A: bandas de potencia → re-estimación
+│   ├── feed_loop.py                # Lazo B: stream de horas al API
+│   └── demo_closed_loop.py         # Demo: ingesta → calibra → MAPE diario baja
 ├── docs/
 │   ├── CATALOGO_EQUIPOS.md         # Catálogo original (referencia; fuente de la migración)
 │   └── SIMULADOR_MAQUINARIA.md     # Especificaciones técnicas
@@ -201,6 +249,11 @@ Siemens-Spacewise/
 - `GET /api/imports` - Lista importaciones
 - `GET /api/imports/<id>` - Detalle con conteos por máquina
 - `DELETE /api/imports/<id>` - Eliminar importación y sus mediciones
+
+### Gemelo (lazo cerrado)
+- `POST /api/ingest/hourly` - Ingesta incremental al import vivo `LIVE-STREAM`; idempotencia por (machine_code, ts); validación todo-o-nada igual que el CSV
+- `GET /api/machines/<code>/state?window=48` - Estado actual estimado por bandas de potencia sobre las últimas N horas del feed (default `LIVE-STREAM`); sin datos responde `UNKNOWN` (nunca rompe el dashboard)
+- `POST /api/machines/<code>/calibrate?import_id=N` - Lazo de calibración: reescribe `machines/<CODE>/machine.json` (shares, `load_factor`, `standby_pct`, `hours_per_day`, `days_per_week`) desde las mediciones; preserva nombres de estado, crea `machine.json.bak` una sola vez y agrega la traza `_calibration`; requiere ≥24 horas
 
 ### Salud
 - `GET /api/health` (alias `/health`) - Estado del servidor

@@ -74,3 +74,18 @@ matlab -batch "run('matlab/scripts/migrate_catalog.m')"
 ```
 
 El markdown queda solo como referencia histórica de los datos.
+
+## Calibración (lazo del gemelo)
+
+Un módulo puede ser recalibrado por la API (`POST /api/machines/<CODE>/calibrate`)
+a partir de mediciones reales o del feed sintético. Reglas:
+
+- Los **nombres de los estados** de `work_cycles` nunca se renombran; solo se
+  ajustan las proporciones (contrato con MATLAB y con los datos heredados).
+- La primera calibración crea `machine.json.bak` con los bytes originales
+  (nunca se sobreescribe): los valores de catálogo se conservan siempre.
+- Se añade el bloque opcional `_calibration` con `before/after` y
+  `calibrated_from` (`import_id`, rango temporal). MATLAB lo ignora:
+  `sim_catalog` solo exige los campos requeridos y tolera claves extra.
+- Para definir una máquina **sin** calibrar, simplemente copia la plantilla y
+  edita los valores; `_calibration` es metadato, no se requiere.

@@ -23,8 +23,9 @@ docs/
 
 | Archivo | Descripción | Estado |
 |---------|-------------|--------|
-| `../README.md` (raíz) | Documentación operativa actual: módulos, API, import/compare | ✅ Vigente |
-| `../machines/_TEMPLATE/_README.md` | Plantilla para definir nueva maquinaria | ✅ Vigente |
+| `../README.md` (raíz) | Documentación operativa actual: módulos, API, import/compare y **lazo cerrado del gemelo** (feed, estado, calibración) | ✅ Vigente |
+| `../machines/_TEMPLATE/_README.md` | Plantilla para definir nueva maquinaria (+ reglas de calibración `_calibration`/`.bak`) | ✅ Vigente |
+| `../plant/` | Mundo físico simulado: planta sintética, runner de ingesta y demo de lazo cerrado (sin hardware) | ✅ Vigente |
 | `CATALOGO_EQUIPOS.md` | **110 equipos industriales** con especificaciones completas (solo referencia; ya no se parsea en runtime) | 📚 Referencia |
 | `SIMULADOR_MAQUINARIA.md` | Planificación original del simulador (decisiones y preguntas de la fase de diseño) | 📚 Histórico de diseño |
 
