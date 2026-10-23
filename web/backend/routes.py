@@ -7,7 +7,11 @@ No stack traces are exposed to clients.
 import csv
 import io
 import json
+import math
 import re
+from datetime import datetime
+from typing import Any
+
 from flask import Blueprint, jsonify, request
 
 import queries
@@ -19,6 +23,9 @@ MACHINE_CODE_RE = re.compile(r'^[A-Z]{2,10}-\d{1,5}$')
 
 # Pattern for timestamps: YYYY-MM-DD HH:MM:SS or YYYY-MM-DD
 TIMESTAMP_RE = re.compile(r'^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?$')
+
+# At most this many line-level errors are returned per rejected CSV
+MAX_IMPORT_ERRORS = 20
 
 
 def _validate_machine_code(code: str) -> str | None:
@@ -42,8 +49,16 @@ def _validate_positive_int(value, name: str) -> tuple[int | None, str | None]:
         return None, f"{name} must be an integer"
 
 
-def _validate_timestamp(value: str | None) -> str | None:
-    """Return normalized timestamp or None if invalid."""
+def _validate_timestamp(value: str | None, full: bool = False) -> str | None:
+    """Return normalized timestamp or None if invalid.
+
+    Args:
+        value: Raw timestamp string.
+        full: When True the time part is mandatory and the calendar date must
+            actually exist (YYYY-MM-DD HH:MM:SS). The regex alone would accept
+            impossible dates like 2026-13-45 99:99:99, and imported rows must
+            be aligned by exact ts string against the simulation grid.
+    """
     if value is None:
         return None
     if not isinstance(value, str):
@@ -53,7 +68,15 @@ def _validate_timestamp(value: str | None) -> str | None:
         return None
     if len(value) > 30:
         return None
-    return value if TIMESTAMP_RE.match(value) else None
+    if not TIMESTAMP_RE.match(value):
+        return None
+    if not full:
+        return value
+    try:
+        datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return None
+    return value
 
 
 @api_bp.route('/machines', methods=['GET'])
@@ -216,3 +239,231 @@ def export_data(sim_id: int):
         )
     except Exception:
         return jsonify({'error': 'Failed to export data'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Real-measurement import and simulated-vs-real comparison (digital shadow).
+# ---------------------------------------------------------------------------
+
+_IMPORT_CSV_REQUIRED_COLUMNS = ('machine_code', 'ts', 'active_power_kw')
+_IMPORT_CSV_OPTIONAL_COLUMNS = ('energy_kwh', 'current_a', 'power_factor', 'voltage_v')
+
+
+def _read_csv_payload() -> tuple[str | None, str | None]:
+    """Return (csv_text, source_label) from a multipart file or a raw body.
+
+    Accepts the formats the dashboard and field tools produce: a multipart
+    upload with a 'file' part, or a text/csv (or plain) request body.
+    """
+    if request.files:
+        file_storage = request.files.get('file') or next(iter(request.files.values()))
+        raw = file_storage.read()
+        filename = (file_storage.filename or '').strip() or None
+        if not raw:
+            return None, filename
+        return raw.decode('utf-8-sig', errors='replace'), filename
+
+    text = request.get_data(as_text=True)
+    if not text or not text.strip():
+        return None, None
+    return text, None
+
+
+def _parse_import_float(value, column: str) -> tuple[float | None, str | None]:
+    """Parse one CSV numeric cell: finite, non-negative. Returns (value, error)."""
+    if value is None:
+        return None, f'{column} is required'
+    text = str(value).strip()
+    if not text:
+        return None, f'{column} is required' if column in _IMPORT_CSV_REQUIRED_COLUMNS else (None, None)
+    try:
+        number = float(text)
+    except ValueError:
+        return None, f'{column} must be a number'
+    if not math.isfinite(number):
+        return None, f'{column} must be a finite number'
+    if number < 0:
+        return None, f'{column} must be zero or greater'
+    return number, None
+
+
+@api_bp.route('/import/real', methods=['POST'])
+def import_real():
+    """Import real measurements from a CSV (SENTREN-style meter export).
+
+    Format: header `machine_code,ts,active_power_kw` with the optional
+    columns `energy_kwh,current_a,power_factor,voltage_v`. Extra columns are
+    ignored. Query params `name` and `notes` label the import.
+
+    The whole file is validated before touching the database: either every
+    row is stored or none is (201 with {import_id, rows}), and on validation
+    failure a 400 is returned with at most 20 line-level errors.
+    """
+    text, source_file = _read_csv_payload()
+    if text is None:
+        return jsonify({'error': 'No CSV data provided'}), 400
+
+    name = (request.args.get('name') or '').strip() or (source_file or 'CSV import')
+    notes = (request.args.get('notes') or '').strip() or None
+    if len(name) > 200 or (notes and len(notes) > 500):
+        return jsonify({'error': 'Import name or notes too long'}), 400
+
+    reader = csv.reader(io.StringIO(text))
+    header = next(reader, None)
+    if not header:
+        return jsonify({'error': 'CSV header must include machine_code,ts,active_power_kw'}), 400
+    columns = [c.strip().lower() for c in header]
+    missing = [c for c in _IMPORT_CSV_REQUIRED_COLUMNS if c not in columns]
+    if missing:
+        return jsonify({
+            'error': 'CSV header must include machine_code,ts,active_power_kw',
+            'missing_columns': missing,
+        }), 400
+
+    try:
+        known_codes = {m['machine_code'] for m in queries.get_all_machines()}
+    except Exception:
+        return jsonify({'error': 'Failed to load machine catalog'}), 500
+
+    errors: list[dict[str, Any]] = []
+    valid_rows: list[dict[str, Any]] = []
+    seen_data_rows = False
+
+    for row in reader:
+        line = reader.line_num
+        if not any((cell or '').strip() for cell in row):
+            continue  # tolerate blank lines
+        seen_data_rows = True
+        values = dict(zip(columns, row))
+        record: dict[str, Any] = {}
+
+        code = _validate_machine_code(values.get('machine_code', ''))
+        if code is None:
+            errors.append({'line': line, 'error': 'invalid machine code format'})
+        elif code not in known_codes:
+            errors.append({'line': line, 'error': f"unknown machine code '{code}'"})
+        else:
+            record['machine_code'] = code
+
+        ts = _validate_timestamp(values.get('ts'), full=True)
+        if ts is None:
+            errors.append({'line': line, 'error': 'invalid timestamp, expected YYYY-MM-DD HH:MM:SS'})
+        else:
+            record['ts'] = ts
+
+        for column in _IMPORT_CSV_REQUIRED_COLUMNS[2:] + _IMPORT_CSV_OPTIONAL_COLUMNS:
+            cell = values.get(column)
+            cell = cell.strip() if isinstance(cell, str) else cell
+            if column in _IMPORT_CSV_REQUIRED_COLUMNS:
+                number, error = _parse_import_float(cell or None, column)
+            elif cell in (None, ''):
+                number, error = None, None
+            else:
+                number, error = _parse_import_float(cell, column)
+            if error:
+                errors.append({'line': line, 'error': error})
+            elif number is not None or column in _IMPORT_CSV_REQUIRED_COLUMNS:
+                record[column] = number
+
+        if not any(k in record for k in ('machine_code', 'ts', 'active_power_kw')):
+            continue
+        # Rows that failed any field check are never stored, even partially.
+        if not all(k in record for k in _IMPORT_CSV_REQUIRED_COLUMNS):
+            continue
+        valid_rows.append(record)
+
+    if not seen_data_rows:
+        return jsonify({'error': 'CSV contains no data rows'}), 400
+    if errors:
+        return jsonify({
+            'error': 'CSV validation failed: nothing was imported',
+            'error_count': len(errors),
+            'errors': errors[:MAX_IMPORT_ERRORS],
+        }), 400
+
+    try:
+        import_id = queries.insert_import(name, source_file, notes)
+        rows_stored = queries.bulk_insert_real_measurements(import_id, valid_rows)
+    except Exception:
+        return jsonify({'error': 'Failed to store measurements'}), 500
+
+    return jsonify({'import_id': import_id, 'rows': rows_stored}), 201
+
+
+@api_bp.route('/imports', methods=['GET'])
+def list_imports():
+    """List real-data imports, newest first."""
+    try:
+        imports = queries.list_imports()
+        return jsonify({'imports': imports, 'count': len(imports)})
+    except Exception:
+        return jsonify({'error': 'Failed to retrieve imports'}), 500
+
+
+@api_bp.route('/imports/<int:import_id>', methods=['GET'])
+def get_import_detail(import_id: int):
+    """Get one import with per-machine row counts."""
+    if import_id <= 0:
+        return jsonify({'error': 'Import ID must be positive'}), 400
+    try:
+        detail = queries.get_import_detail(import_id)
+        if detail is None:
+            return jsonify({'error': f'Import {import_id} not found'}), 404
+        return jsonify(detail)
+    except Exception:
+        return jsonify({'error': 'Failed to retrieve import'}), 500
+
+
+@api_bp.route('/imports/<int:import_id>', methods=['DELETE'])
+def delete_import(import_id: int):
+    """Delete an import and cascade the removal to its measurements."""
+    if import_id <= 0:
+        return jsonify({'error': 'Import ID must be positive'}), 400
+    try:
+        result = queries.delete_import(import_id)
+        if result is None:
+            return jsonify({'error': f'Import {import_id} not found'}), 404
+        return jsonify(result)
+    except Exception:
+        return jsonify({'error': 'Failed to delete import'}), 500
+
+
+@api_bp.route('/simulations/<int:sim_id>/compare', methods=['GET'])
+def compare_simulation(sim_id: int):
+    """Compare the simulated hourly profile of one machine against real data.
+
+    Query params:
+        machine: machine code (required), e.g. 'HVAC-001'
+        import_id: import to compare against; defaults to the latest import
+    """
+    if sim_id <= 0:
+        return jsonify({'error': 'Simulation ID must be positive'}), 400
+
+    machine = _validate_machine_code(request.args.get('machine'))
+    if machine is None:
+        return jsonify({'error': 'machine query parameter must be a valid machine code'}), 400
+
+    raw_import = request.args.get('import_id')
+    import_id = None
+    if raw_import:
+        import_id, error = _validate_positive_int(raw_import, 'import_id')
+        if error:
+            return jsonify({'error': error}), 400
+
+    try:
+        if not queries.validate_simulation_id(sim_id):
+            return jsonify({'error': f'Simulation {sim_id} not found'}), 404
+        if not queries.validate_machine_code(machine):
+            return jsonify({'error': f'Machine {machine} not found'}), 404
+
+        if import_id is None:
+            imports = queries.list_imports()
+            if not imports:
+                return jsonify({'error': 'No real data imports available to compare'}), 404
+            import_id = max(i['import_id'] for i in imports)
+        elif queries.get_import_detail(import_id) is None:
+            return jsonify({'error': f'Import {import_id} not found'}), 404
+
+        return jsonify(queries.get_comparison(sim_id, machine, import_id))
+    except Exception:
+        return jsonify({'error': 'Failed to compare simulation with real data'}), 500

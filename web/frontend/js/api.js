@@ -143,6 +143,64 @@ const API = {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    },
+
+    /**
+     * Upload a real-measurements CSV file (POST /api/import/real, multipart).
+     * Uses fetch directly: FormData must not carry the JSON Content-Type that
+     * request() sets, so the browser can add the multipart boundary itself.
+     * @param {File} file - CSV file (machine_code,ts,active_power_kw[,…])
+     * @param {string} [name] - Optional label for the import
+     * @param {string} [notes] - Optional notes for the import
+     * @returns {Promise<{import_id: number, rows: number}>}
+     */
+    async uploadRealCsv(file, name, notes) {
+        const params = new URLSearchParams();
+        if (name) params.set('name', name);
+        if (notes) params.set('notes', notes);
+        const query = params.toString() ? `?${params.toString()}` : '';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        let response;
+        try {
+            response = await fetch(`${this.getBaseUrl()}/import/real${query}`, {
+                method: 'POST',
+                body: formData,
+            });
+        } catch (error) {
+            throw new Error('No se pudo conectar al servidor. Verifique que Flask esté corriendo en puerto 5000.');
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const error = new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+            error.errors = data.errors || [];
+            throw error;
+        }
+        return data;
+    },
+
+    /**
+     * List the imported real-measurement batches
+     * @returns {Promise<{imports: Array, count: number}>}
+     */
+    async getImports() {
+        return this.request('/imports');
+    },
+
+    /**
+     * Get the hourly-aligned comparison between a simulation and an import
+     * @param {number} simulationId - Simulation ID
+     * @param {string} machineCode - Machine code (e.g., 'HVAC-001')
+     * @param {number|string} [importId] - Import to compare; latest if omitted
+     * @returns {Promise<object>} {series, mape_pct, mean_bias_pct, hours_compared, coverage_pct}
+     */
+    async getCompare(simulationId, machineCode, importId) {
+        let endpoint = `/simulations/${simulationId}/compare?machine=${encodeURIComponent(machineCode)}`;
+        if (importId) endpoint += `&import_id=${encodeURIComponent(importId)}`;
+        return this.request(endpoint);
     }
 };
 

@@ -279,6 +279,150 @@ canvas {
 }
 
 /* ============================================
+   Simulado vs Real (comparación con mediciones reales)
+   ============================================ */
+.compare-panel {
+    background: var(--surface-color);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-top: var(--spacing-lg);
+}
+
+.compare-panel h2 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-md);
+}
+
+.compare-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    align-items: flex-end;
+    margin-bottom: var(--spacing-md);
+}
+
+.compare-controls .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    flex: 1;
+    min-width: 200px;
+}
+
+.compare-controls .control-group.button-group {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.compare-controls label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.compare-controls select,
+.compare-controls input[type="file"] {
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+    background-color: var(--surface-color);
+    color: var(--text-primary);
+}
+
+.compare-controls input[type="file"] {
+    padding: calc(var(--spacing-sm) - 2px);
+}
+
+.compare-controls button {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.compare-controls button:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+#upload-real-csv,
+#compare-refresh {
+    background-color: var(--secondary-color);
+}
+
+#upload-real-csv:hover,
+#compare-refresh:hover {
+    background-color: #1976D2;
+}
+
+.import-result {
+    min-height: 1.5rem;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-sm);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.import-result.success {
+    color: var(--success-color);
+}
+
+.import-result.error {
+    color: var(--error-color);
+}
+
+.compare-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.mape-badge {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-lg);
+    background-color: var(--border-color);
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+}
+
+.mape-badge.good {
+    background-color: rgba(76, 175, 80, 0.18);
+    color: #2E7D32;
+}
+
+.mape-badge.ok {
+    background-color: rgba(255, 152, 0, 0.2);
+    color: #E65100;
+}
+
+.mape-badge.bad {
+    background-color: rgba(244, 67, 54, 0.18);
+    color: #C62828;
+}
+
+.compare-stat {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+/* ============================================
    Loading Indicator
    ============================================ */
 .loading {

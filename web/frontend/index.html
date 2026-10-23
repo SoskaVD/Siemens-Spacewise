@@ -88,6 +88,43 @@
             </div>
         </section>
 
+        <section class="compare-panel" aria-label="Comparación simulado vs real">
+            <h2>Simulado vs Real</h2>
+
+            <div class="compare-controls">
+                <div class="control-group">
+                    <label for="real-csv-file">Mediciones reales (CSV):</label>
+                    <input type="file" id="real-csv-file" accept=".csv,text/csv"
+                           aria-label="Archivo CSV con mediciones reales">
+                </div>
+                <div class="control-group button-group">
+                    <button id="upload-real-csv" aria-label="Cargar CSV real">Cargar CSV real</button>
+                </div>
+                <div class="control-group">
+                    <label for="import-select">Importación:</label>
+                    <select id="import-select" aria-label="Seleccionar importación de datos reales">
+                        <option value="">Última importación</option>
+                    </select>
+                </div>
+                <div class="control-group button-group">
+                    <button id="compare-refresh" aria-label="Comparar simulación con datos reales">Comparar</button>
+                </div>
+            </div>
+
+            <p id="import-result" class="import-result" role="status" aria-live="polite"></p>
+
+            <div class="compare-summary">
+                <span class="mape-badge" id="mape-badge">Error medio: -</span>
+                <span class="compare-stat" id="compare-hours">Horas comparadas: -</span>
+                <span class="compare-stat" id="compare-coverage">Cobertura: -</span>
+            </div>
+
+            <div class="chart-wrapper">
+                <h2>Perfil simulado vs mediciones reales (kW)</h2>
+                <canvas id="compare-chart" aria-label="Gráfico comparativo entre perfil simulado y mediciones reales"></canvas>
+            </div>
+        </section>
+
         <div id="error-display" class="error-message" role="alert" aria-live="assertive"></div>
         <div id="loading-indicator" class="loading" aria-live="polite">
             <span>Cargando datos...</span>
@@ -123,6 +160,7 @@
             setupEventListeners();
             await loadSimulations(true);
             await loadMachines();
+            await loadImports();
             setInterval(refreshLive, REFRESH_MS);
         });
 
@@ -225,6 +263,97 @@
                 if (endDate) url += `&end=${endDate}`;
                 window.open(url, '_blank');
             });
+
+            // Simulado vs Real: refreshes only on user action, never on the 5s poll.
+            document.getElementById('upload-real-csv').addEventListener('click', uploadRealCsv);
+            document.getElementById('compare-refresh').addEventListener('click', refreshComparison);
+            document.getElementById('import-select').addEventListener('change', refreshComparison);
+        }
+
+        async function loadImports() {
+            try {
+                const data = await API.getImports();
+                const select = document.getElementById('import-select');
+                const selected = select.value;
+                select.innerHTML = '<option value="">Última importación</option>';
+                data.imports.forEach(imp => {
+                    const option = document.createElement('option');
+                    option.value = imp.import_id;
+                    option.textContent =
+                        `${imp.name} (${imp.total_records || 0} registros)`;
+                    select.appendChild(option);
+                });
+                if (selected) select.value = selected;
+            } catch (error) {
+                showError('Error al cargar importaciones: ' + error.message);
+            }
+        }
+
+        async function uploadRealCsv() {
+            const input = document.getElementById('real-csv-file');
+            const resultLine = document.getElementById('import-result');
+            if (!input.files || input.files.length === 0) {
+                showError('Seleccione un archivo CSV primero');
+                return;
+            }
+            try {
+                const result = await API.uploadRealCsv(input.files[0]);
+                resultLine.className = 'import-result success';
+                resultLine.textContent =
+                    `Importación #${result.import_id} cargada: ${result.rows} filas.`;
+                input.value = '';
+                await loadImports();
+                await refreshComparison();
+            } catch (error) {
+                resultLine.className = 'import-result error';
+                let message = 'Error al cargar CSV: ' + error.message;
+                if (error.errors && error.errors.length) {
+                    const detail = error.errors.map(e => `línea ${e.line}: ${e.error}`).join('; ');
+                    message += ` (${detail})`;
+                }
+                resultLine.textContent = message;
+            }
+        }
+
+        async function refreshComparison() {
+            if (!currentSimulationId) {
+                showError('Seleccione una simulación primero');
+                return;
+            }
+            const machine = document.getElementById('machine-select').value;
+            if (!machine) {
+                showError('Seleccione una máquina para comparar');
+                return;
+            }
+            const importId = document.getElementById('import-select').value || null;
+            try {
+                const comparison = await API.getCompare(currentSimulationId, machine, importId);
+                renderCompareChart(comparison);
+                updateCompareBadges(comparison);
+            } catch (error) {
+                showError('Error al comparar: ' + error.message);
+            }
+        }
+
+        function updateCompareBadges(comparison) {
+            const badge = document.getElementById('mape-badge');
+            if (comparison.mape_pct === null || comparison.mape_pct === undefined) {
+                badge.textContent = 'Error medio: -';
+                badge.className = 'mape-badge';
+            } else {
+                badge.textContent = `Error medio: ${formatNumber(comparison.mape_pct, 1)} %`;
+                badge.className = 'mape-badge ' + mapeBadgeClass(comparison.mape_pct);
+            }
+            document.getElementById('compare-hours').textContent =
+                `Horas comparadas: ${comparison.hours_compared}`;
+            document.getElementById('compare-coverage').textContent =
+                `Cobertura: ${formatNumber(comparison.coverage_pct, 1)} %`;
+        }
+
+        function mapeBadgeClass(mapePct) {
+            if (mapePct <= 5) return 'good';
+            if (mapePct <= 15) return 'ok';
+            return 'bad';
         }
 
         async function loadSimulationData(silent = false) {

@@ -72,6 +72,20 @@ class TestFrontendServed:
     def test_unknown_asset_is_404(self, client):
         assert client.get('/js/no-existe.js').status_code == 404
 
+    def test_root_contains_comparison_section(self, client):
+        """T2: the dashboard exposes the "Simulado vs Real" area and its 4th chart."""
+        body = client.get('/').data.decode('utf-8')
+        assert 'Simulado vs Real' in body
+        assert 'compare-chart' in body
+        assert 'Cargar CSV real' in body
+
+    def test_compare_assets_exposed(self, client):
+        charts = client.get('/js/charts.js').data.decode('utf-8')
+        assert 'renderCompareChart' in charts
+        api = client.get('/js/api.js').data.decode('utf-8')
+        for fn in ('uploadRealCsv', 'getImports', 'getCompare'):
+            assert fn in api
+
     def test_health_alias(self, client):
         assert client.get('/health').status_code == 200
 

@@ -7,6 +7,7 @@
 let hourlyChart = null;
 let categoryChart = null;
 let topMachinesChart = null;
+let compareChart = null;
 
 /**
  * Render hourly consumption line chart (8760 points)
@@ -299,3 +300,111 @@ function renderTopMachinesChart(topMachines) {
 window.renderHourlyChart = renderHourlyChart;
 window.renderCategoryChart = renderCategoryChart;
 window.renderTopMachinesChart = renderTopMachinesChart;
+
+/**
+ * Render the simulated vs real comparison line chart
+ * @param {object} comparison - Payload from /api/simulations/<id>/compare
+ *   ({series: [{ts, simulated_kw, real_kw}], mape_pct, ...})
+ */
+function renderCompareChart(comparison) {
+    const ctx = document.getElementById('compare-chart').getContext('2d');
+
+    // Destroy existing chart if present
+    if (compareChart) {
+        compareChart.destroy();
+    }
+
+    const series = (comparison && comparison.series) || [];
+    const labels = series.map(d => d.ts);
+    const simulated = series.map(d => d.simulated_kw);
+    const real = series.map(d => d.real_kw);
+
+    compareChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Simulado (kW)',
+                    data: simulated,
+                    borderColor: 'rgb(0, 150, 136)',
+                    backgroundColor: 'rgba(0, 150, 136, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 2,
+                    pointHoverRadius: 4
+                },
+                {
+                    label: 'Real (kW)',
+                    data: real,
+                    borderColor: 'rgb(244, 67, 54)',
+                    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                    borderWidth: 2,
+                    borderDash: [6, 3],
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 2,
+                    pointHoverRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 3,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label;
+                        },
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} kW`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Fecha y Hora'
+                    },
+                    ticks: {
+                        maxTicksLimit: 12,
+                        maxRotation: 45,
+                        minRotation: 0
+                    }
+                },
+                y: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Potencia (kW)'
+                    },
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('es-ES') + ' kW';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}

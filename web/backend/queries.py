@@ -395,3 +395,364 @@ def validate_machine_code(machine_code: str, db_path: str = None) -> bool:
         return cursor.fetchone() is not None
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Real-measurement import (digital shadow): read-write helpers.
+# The import_data / import_measurements tables from data/schema_simulator.sql
+# already exist and are reused as the storage for real measurements.
+# ---------------------------------------------------------------------------
+
+
+def get_db_connection_rw(db_path: str = None) -> sqlite3.Connection:
+    """Get a read-write database connection for the import path.
+
+    Used only by the import/delete helpers. Like the read-only helper it
+    refuses to touch a missing file: sqlite3.connect() on a non-existent path
+    silently creates an empty database, and the MATLAB side skips schema
+    creation when the file already exists.
+
+    Args:
+        db_path: Path to SQLite database file. If None, uses default path.
+
+    Returns:
+        sqlite3.Connection with row_factory and manual transaction control
+
+    Raises:
+        sqlite3.OperationalError: if the database file does not exist yet.
+    """
+    if db_path is None:
+        # Default path relative to this file
+        db_path = Path(__file__).parent.parent.parent / 'data' / 'spacewise.db'
+
+    resolved = Path(db_path).resolve()
+    if not resolved.exists():
+        raise sqlite3.OperationalError(f'database file not found: {resolved}')
+    conn = sqlite3.connect(str(resolved), timeout=10, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _next_import_code(conn: sqlite3.Connection) -> str:
+    """Return an unused IMPORT-xxxxx code for a new import_data row."""
+    next_id = conn.execute(
+        "SELECT COALESCE(MAX(import_id), 0) + 1 FROM import_data"
+    ).fetchone()[0]
+    code = f'IMPORT-{next_id:05d}'
+    while conn.execute(
+        "SELECT 1 FROM import_data WHERE import_code = ?", (code,)
+    ).fetchone():
+        next_id += 1
+        code = f'IMPORT-{next_id:05d}'
+    return code
+
+
+def insert_import(name: str, source: str = None, notes: str = None,
+                  db_path: str = None) -> int:
+    """Create an import_data header row and return its import_id.
+
+    Args:
+        name: Descriptive name (import_data.name, NOT NULL in the schema)
+        source: Origin file name (import_data.source_file)
+        notes: Free text (import_data.description)
+
+    Returns:
+        The new import_id.
+    """
+    conn = get_db_connection_rw(db_path)
+    try:
+        conn.execute('BEGIN')
+        cursor = conn.execute("""
+            INSERT INTO import_data (import_code, name, source_file, description)
+            VALUES (?, ?, ?, ?)
+        """, (_next_import_code(conn), name, source, notes))
+        import_id = cursor.lastrowid
+        conn.execute('COMMIT')
+        return import_id
+    except Exception:
+        conn.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+
+
+def bulk_insert_real_measurements(import_id: int, rows: list[dict[str, Any]],
+                                  db_path: str = None) -> int:
+    """Insert validated real measurements for one import, atomically.
+
+    Each row is a dict with keys: machine_code, ts, active_power_kw and the
+    optional energy_kwh, current_a, power_factor, voltage_v, metadata_json.
+    On failure the measurement insert is rolled back and the header row
+    created by insert_import() is removed as well, so an import never exists
+    without its data (all rows or none).
+
+    Returns:
+        Number of rows inserted.
+    """
+    payload = [
+        (import_id,
+         r.get('machine_code'),
+         r.get('ts'),
+         r.get('active_power_kw'),
+         r.get('energy_kwh'),
+         r.get('current_a'),
+         r.get('power_factor'),
+         r.get('voltage_v'),
+         r.get('metadata_json'))
+        for r in rows
+    ]
+    conn = get_db_connection_rw(db_path)
+    try:
+        conn.execute('BEGIN')
+        conn.executemany("""
+            INSERT INTO import_measurements (
+                import_id, machine_code, ts, active_power_kw,
+                energy_kwh, current_a, power_factor, voltage_v, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, payload)
+        conn.execute("""
+            UPDATE import_data
+            SET total_records = (SELECT COUNT(*) FROM import_measurements WHERE import_id = ?),
+                start_date = (SELECT MIN(ts) FROM import_measurements WHERE import_id = ?),
+                end_date = (SELECT MAX(ts) FROM import_measurements WHERE import_id = ?)
+            WHERE import_id = ?
+        """, (import_id, import_id, import_id, import_id))
+        conn.execute('COMMIT')
+        return len(payload)
+    except Exception:
+        conn.execute('ROLLBACK')
+        conn.execute('DELETE FROM import_data WHERE import_id = ?', (import_id,))
+        raise
+    finally:
+        conn.close()
+
+
+def list_imports(db_path: str = None) -> list[dict[str, Any]]:
+    """List all real-data imports, newest first.
+
+    Returns:
+        List of import_data rows (id, code, name, source, dates, counts).
+    """
+    try:
+        conn = get_db_connection(db_path)
+    except sqlite3.OperationalError:
+        return []  # database not created yet (simulator still starting)
+    try:
+        cursor = conn.execute("""
+            SELECT
+                import_id,
+                import_code,
+                name,
+                source_file,
+                import_date,
+                description,
+                start_date,
+                end_date,
+                total_records
+            FROM import_data
+            ORDER BY import_date DESC, import_id DESC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.OperationalError:
+        return []  # tables not created yet
+    finally:
+        conn.close()
+
+
+def get_import_detail(import_id: int, db_path: str = None) -> dict[str, Any] | None:
+    """Get one import with its header data and per-machine row counts.
+
+    Returns:
+        Import detail dict, or None when the import_id does not exist.
+    """
+    try:
+        conn = get_db_connection(db_path)
+    except sqlite3.OperationalError:
+        return None
+    try:
+        header = conn.execute("""
+            SELECT
+                import_id,
+                import_code,
+                name,
+                source_file,
+                import_date,
+                description,
+                start_date,
+                end_date,
+                total_records,
+                metadata_json
+            FROM import_data
+            WHERE import_id = ?
+        """, (import_id,)).fetchone()
+        if header is None:
+            return None
+        detail = dict(header)
+        machines = conn.execute("""
+            SELECT
+                COALESCE(machine_code, '') AS machine_code,
+                COUNT(*) AS rows,
+                MIN(ts) AS first_ts,
+                MAX(ts) AS last_ts
+            FROM import_measurements
+            WHERE import_id = ?
+            GROUP BY machine_code
+            ORDER BY rows DESC, machine_code ASC
+        """, (import_id,)).fetchall()
+        detail['machines'] = [dict(row) for row in machines]
+        return detail
+    except sqlite3.OperationalError:
+        return None  # tables not created yet
+    finally:
+        conn.close()
+
+
+def delete_import(import_id: int, db_path: str = None) -> dict[str, Any] | None:
+    """Delete an import and cascade the removal to its measurements.
+
+    The schema has no ON DELETE CASCADE, so the child rows are removed
+    explicitly inside one transaction.
+
+    Returns:
+        {'import_id': ..., 'rows_removed': n}, or None when it does not exist.
+    """
+    conn = get_db_connection_rw(db_path)
+    try:
+        conn.execute('BEGIN')
+        exists = conn.execute(
+            'SELECT 1 FROM import_data WHERE import_id = ?', (import_id,)
+        ).fetchone()
+        if exists is None:
+            conn.execute('ROLLBACK')
+            return None
+        rows_removed = conn.execute(
+            'DELETE FROM import_measurements WHERE import_id = ?', (import_id,)
+        ).rowcount
+        conn.execute('DELETE FROM import_data WHERE import_id = ?', (import_id,))
+        conn.execute('COMMIT')
+        return {'import_id': import_id, 'rows_removed': rows_removed}
+    except Exception:
+        conn.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+
+
+_REAL_SELECT = """
+            SELECT
+                import_meas_id,
+                machine_code,
+                ts,
+                active_power_kw,
+                energy_kwh,
+                current_a,
+                power_factor,
+                voltage_v,
+                metadata_json
+            FROM import_measurements
+            WHERE import_id = ?
+        """
+
+
+def _real_measurements_query(conn: sqlite3.Connection, import_id: int,
+                             machine_code: str | None, start_ts: str | None,
+                             end_ts: str | None) -> list[sqlite3.Row]:
+    """Shared SELECT for real measurements (kept in one place for both helpers)."""
+    query = _REAL_SELECT
+    params: list[Any] = [import_id]
+    if machine_code:
+        query += ' AND machine_code = ?'
+        params.append(machine_code)
+    if start_ts:
+        query += ' AND ts >= ?'
+        params.append(start_ts)
+    if end_ts:
+        query += ' AND ts <= ?'
+        params.append(end_ts)
+    query += ' ORDER BY ts, import_meas_id'
+    return conn.execute(query, params).fetchall()
+
+
+def get_real_measurements(import_id: int, machine_code: str = None,
+                          start_ts: str = None, end_ts: str = None,
+                          db_path: str = None) -> list[dict[str, Any]]:
+    """Get imported real measurements with optional machine/date filtering.
+
+    Args:
+        import_id: Import to read
+        machine_code: Restrict to one machine, or None for all
+        start_ts: Lower bound timestamp (inclusive), or None
+        end_ts: Upper bound timestamp (inclusive), or None
+
+    Returns:
+        List of measurement dicts ordered by ts.
+    """
+    conn = get_db_connection(db_path)
+    try:
+        return [dict(row) for row in _real_measurements_query(
+            conn, import_id, machine_code, start_ts, end_ts)]
+    finally:
+        conn.close()
+
+
+def get_comparison(simulation_id: int, machine_code: str, import_id: int,
+                   db_path: str = None) -> dict[str, Any]:
+    """Compare the simulated hourly profile of one machine against real data.
+
+    Alignment is by exact ts string equality ('YYYY-MM-DD HH:MM:SS'), matching
+    the hourly grid the simulator writes. Hours where the real measurement is
+    zero are still aligned hours but are excluded from MAPE/bias (division by
+    zero guard). Empty overlap yields zero coverage and null error metrics,
+    never an error.
+
+    Returns:
+        Dict with the aligned series plus mape_pct, mean_bias_pct,
+        hours_compared and coverage_pct (share of simulation hours that have
+        a real match).
+    """
+    conn = get_db_connection(db_path)
+    try:
+        sim_rows = conn.execute("""
+            SELECT mm.ts, mm.active_power_kw
+            FROM machine_measurements mm
+            JOIN machines m ON mm.machine_id = m.machine_id
+            WHERE mm.simulation_id = ? AND m.machine_code = ?
+            ORDER BY mm.hour_index
+        """, (simulation_id, machine_code)).fetchall()
+        real_rows = _real_measurements_query(conn, import_id, machine_code, None, None)
+    finally:
+        conn.close()
+
+    sim_by_ts: dict[str, float] = {}
+    for row in sim_rows:
+        sim_by_ts.setdefault(row['ts'], row['active_power_kw'])
+    real_by_ts: dict[str, float] = {}
+    for row in real_rows:
+        if row['active_power_kw'] is None:
+            continue
+        real_by_ts.setdefault(row['ts'], row['active_power_kw'])
+
+    common_ts = sorted(set(sim_by_ts) & set(real_by_ts))
+    series = [
+        {'ts': ts, 'simulated_kw': sim_by_ts[ts], 'real_kw': real_by_ts[ts]}
+        for ts in common_ts
+    ]
+
+    # Percentage errors use only hours with a real reading above zero.
+    apes = [abs(sim_by_ts[ts] - real_by_ts[ts]) / real_by_ts[ts] * 100.0
+            for ts in common_ts if real_by_ts[ts] > 0]
+    biases = [(sim_by_ts[ts] - real_by_ts[ts]) / real_by_ts[ts] * 100.0
+              for ts in common_ts if real_by_ts[ts] > 0]
+
+    sim_hours = len(sim_by_ts)
+    return {
+        'simulation_id': simulation_id,
+        'machine_code': machine_code,
+        'import_id': import_id,
+        'series': series,
+        'points': len(series),
+        'hours_compared': len(common_ts),
+        'coverage_pct': (len(common_ts) / sim_hours * 100.0) if sim_hours else 0.0,
+        'mape_pct': (sum(apes) / len(apes)) if apes else None,
+        'mean_bias_pct': (sum(biases) / len(biases)) if biases else None,
+    }

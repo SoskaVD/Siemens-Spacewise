@@ -112,6 +112,9 @@ def _configure_queries(app: Flask) -> None:
         'get_all_machines', 'get_machine_by_code', 'get_all_simulations',
         'get_simulation_summary', 'get_hourly_totals', 'get_machine_measurements',
         'get_export_data', 'validate_simulation_id', 'validate_machine_code',
+        'insert_import', 'bulk_insert_real_measurements', 'list_imports',
+        'get_import_detail', 'delete_import', 'get_real_measurements',
+        'get_comparison',
     ]
     for name in helpers:
         original = getattr(q, name)
