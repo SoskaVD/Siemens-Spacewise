@@ -1,7 +1,9 @@
 # Simulador de Maquinaria Industrial — Nuevo Enfoque del Proyecto
 
+> **ℹ️ Estado del documento (2026-10-23):** este es el documento de **planificación original** (fase de diseño). La implementación evoluciona y superó varias suposiciones: el pipeline CEN legado (`dt_*`) fue eliminado del repo, `sim_db.m` es independiente, y el catálogo ya no se parsea desde este markdown en runtime sino desde módulos `machines/<CODE>/machine.json` con autodescubrimiento por carpeta. Para el estado operativo actual ver [`README.md`](../README.md) y la guía de la plantilla en [`machines/_TEMPLATE/_README.md`](../machines/_TEMPLATE/_README.md).
+
 **Fecha:** 2026-10-11
-**Estado:** Planificación completa, datos listos para implementación
+**Estado:** Planificación completa, datos listos para implementación (histórico)
 **Contexto:** Cambio de enfoque debido a falta de participación del CEN (Centro Espacial Nacional)
 
 > **📋 Catálogo disponible**: El catálogo de **110 equipos industriales** con especificaciones técnicas completas está en [`CATALOGO_EQUIPOS.md`](./CATALOGO_EQUIPOS.md). Este archivo contiene todos los datos necesarios para la implementación del simulador.
