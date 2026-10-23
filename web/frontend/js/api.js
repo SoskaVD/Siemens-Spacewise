@@ -201,6 +201,31 @@ const API = {
         let endpoint = `/simulations/${simulationId}/compare?machine=${encodeURIComponent(machineCode)}`;
         if (importId) endpoint += `&import_id=${encodeURIComponent(importId)}`;
         return this.request(endpoint);
+    },
+
+    /**
+     * Get the current estimated state of a machine from its recent live rows
+     * (GET /api/machines/<code>/state, digital-twin closed loop).
+     * @param {string} code - Machine code (e.g., 'HVAC-001')
+     * @param {number} [windowHours] - Hours window; server default 48 if omitted
+     * @returns {Promise<object>} {state, state_key, power_kw, last_ts, confidence, window_hours, import_id}
+     */
+    async getMachineState(code, windowHours) {
+        let endpoint = `/machines/${encodeURIComponent(code)}/state`;
+        if (windowHours) endpoint += `?window=${encodeURIComponent(windowHours)}`;
+        return this.request(endpoint);
+    },
+
+    /**
+     * Calibrate a machine module from the live measurements
+     * (POST /api/machines/<code>/calibrate without import_id: LIVE-STREAM).
+     * @param {string} code - Machine code (e.g., 'HVAC-001')
+     * @returns {Promise<object>} {machine_code, import_id, hours_analyzed, before, after, backup}
+     */
+    async calibrateMachine(code) {
+        return this.request(`/machines/${encodeURIComponent(code)}/calibrate`, {
+            method: 'POST'
+        });
     }
 };
 

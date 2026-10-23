@@ -125,6 +125,32 @@
             </div>
         </section>
 
+        <section class="twin-panel" aria-label="Gemelo de lazo cerrado">
+            <h2>Gemelo (lazo cerrado)</h2>
+            <p class="twin-subtitle">Estado actual estimado desde las mediciones en vivo (LIVE-STREAM)</p>
+
+            <div class="twin-controls">
+                <div class="control-group">
+                    <label for="twin-machine-select">Máquina (gemelo):</label>
+                    <select id="twin-machine-select" aria-label="Seleccionar máquina para el estado en vivo">
+                        <option value="">Seleccionar máquina...</option>
+                    </select>
+                </div>
+                <div class="control-group button-group">
+                    <button id="twin-calibrate" aria-label="Calibrar máquina con datos reales">Calibrar con datos reales</button>
+                </div>
+            </div>
+
+            <div class="twin-state-row">
+                <span class="twin-badge unknown" id="twin-state-badge">Sin selección</span>
+                <span class="twin-stat" id="twin-power">Potencia: -</span>
+                <span class="twin-stat" id="twin-last-ts">Última medición: -</span>
+                <span class="twin-stat" id="twin-confidence">Confianza: -</span>
+            </div>
+
+            <p id="twin-status" class="twin-status" role="status" aria-live="polite"></p>
+        </section>
+
         <div id="error-display" class="error-message" role="alert" aria-live="assertive"></div>
         <div id="loading-indicator" class="loading" aria-live="polite">
             <span>Cargando datos...</span>
@@ -171,6 +197,96 @@
             if (document.getElementById('machine-select').options.length <= 1) {
                 await loadMachines(true);
             }
+            // Gemelo: el estado en vivo se refresca con el mismo poll. Nunca
+            // interrumpe el resto del dashboard si la llamada falla.
+            await refreshTwinState();
+        }
+
+        // -----------------------------------------------------------------
+        // Gemelo (lazo cerrado): estado actual + calibración por máquina.
+        // -----------------------------------------------------------------
+        const TWIN_STATE_LABELS = {
+            off: 'Apagada',
+            standby: 'En espera',
+            partial: 'Carga parcial',
+            running: 'En operación'
+        };
+
+        async function refreshTwinState() {
+            const code = document.getElementById('twin-machine-select').value;
+            if (!code) return;
+            try {
+                const state = await API.getMachineState(code);
+                renderTwinState(state);
+            } catch (error) {
+                const badge = document.getElementById('twin-state-badge');
+                badge.textContent = 'Estado: sin datos';
+                badge.className = 'twin-badge unknown';
+                // El error queda en la línea de estado del panel, no bloquea nada.
+                const statusLine = document.getElementById('twin-status');
+                if (!twinCalibrationPending) {
+                    statusLine.className = 'twin-status error';
+                    statusLine.textContent = 'Error al consultar el estado: ' + error.message;
+                }
+            }
+        }
+
+        function renderTwinState(state) {
+            const badge = document.getElementById('twin-state-badge');
+            const key = state.state_key || 'unknown';
+            if (state.state === 'UNKNOWN') {
+                badge.textContent = 'Sin mediciones recientes';
+                badge.className = 'twin-badge unknown';
+            } else {
+                const label = TWIN_STATE_LABELS[key] || state.state;
+                badge.textContent = `${label} (${state.state})`;
+                badge.className = 'twin-badge ' + key;
+            }
+            document.getElementById('twin-power').textContent =
+                `Potencia: ${state.power_kw === null || state.power_kw === undefined
+                    ? '-' : formatNumber(state.power_kw, 2) + ' kW'}`;
+            document.getElementById('twin-last-ts').textContent =
+                `Última medición: ${state.last_ts || '-'}`;
+            document.getElementById('twin-confidence').textContent =
+                `Confianza: ${formatNumber((state.confidence || 0) * 100, 0)} %`;
+        }
+
+        let twinCalibrationPending = false;
+
+        async function calibrateTwinMachine() {
+            const code = document.getElementById('twin-machine-select').value;
+            const statusLine = document.getElementById('twin-status');
+            if (!code) {
+                statusLine.className = 'twin-status error';
+                statusLine.textContent = 'Seleccione una máquina para calibrar';
+                return;
+            }
+            twinCalibrationPending = true;
+            statusLine.className = 'twin-status';
+            statusLine.textContent = 'Calibrando con datos reales...';
+            try {
+                const result = await API.calibrateMachine(code);
+                statusLine.className = 'twin-status success';
+                statusLine.textContent = describeCalibration(result);
+                await refreshTwinState();
+            } catch (error) {
+                statusLine.className = 'twin-status error';
+                statusLine.textContent = 'Error al calibrar: ' + error.message;
+            } finally {
+                twinCalibrationPending = false;
+            }
+        }
+
+        function describeCalibration(result) {
+            const pct = (share) => `${formatNumber(share * 100, 1)} %`;
+            const before = result.before || {};
+            const after = result.after || {};
+            const cycles = Object.keys(after.work_cycles || {})
+                .map(key => `${key}: ${pct(before.work_cycles[key])} → ${pct(after.work_cycles[key])}`)
+                .join('; ');
+            return `Calibrado (${result.hours_analyzed} h, importación #${result.import_id}): `
+                + `load_factor ${before.load_factor} → ${after.load_factor}; `
+                + `standby_pct ${before.standby_pct} → ${after.standby_pct}; ${cycles}`;
         }
 
         async function loadSimulations(initial = true) {
@@ -232,6 +348,18 @@
                     select.appendChild(option);
                 });
                 select.value = selected;
+
+                // Gemelo: el selector de estado en vivo comparte el catálogo.
+                const twinSelect = document.getElementById('twin-machine-select');
+                const twinSelected = twinSelect.value;
+                twinSelect.innerHTML = '<option value="">Seleccionar máquina...</option>';
+                data.machines.forEach(machine => {
+                    const option = document.createElement('option');
+                    option.value = machine.machine_code;
+                    option.textContent = `${machine.machine_code} - ${machine.name}`;
+                    twinSelect.appendChild(option);
+                });
+                if (twinSelected) twinSelect.value = twinSelected;
             } catch (error) {
                 if (!silent) showError('Error al cargar máquinas: ' + error.message);
             }
@@ -268,6 +396,15 @@
             document.getElementById('upload-real-csv').addEventListener('click', uploadRealCsv);
             document.getElementById('compare-refresh').addEventListener('click', refreshComparison);
             document.getElementById('import-select').addEventListener('change', refreshComparison);
+
+            // Gemelo: estado inmediato al elegir máquina + calibración a demanda.
+            document.getElementById('twin-machine-select').addEventListener('change', () => {
+                const statusLine = document.getElementById('twin-status');
+                statusLine.textContent = '';
+                statusLine.className = 'twin-status';
+                refreshTwinState();
+            });
+            document.getElementById('twin-calibrate').addEventListener('click', calibrateTwinMachine);
         }
 
         async function loadImports() {

@@ -636,3 +636,91 @@ def calibrate_machine(machine_code: str):
         'after': trace['after'],
         'backup': backup.name if backup.exists() else None,
     })
+
+
+# Single-source cap for the live-state window: one week of hourly rows is
+# plenty to estimate the current state without scanning huge imports.
+STATE_WINDOW_CAP = 168
+STATE_WINDOW_DEFAULT = 48
+
+
+@api_bp.route('/machines/<machine_code>/state', methods=['GET'])
+def machine_state(machine_code: str):
+    """Current estimated state of a machine from its latest real rows (T4).
+
+    Query params:
+        window: number of most-recent hourly rows to classify (default 48,
+            capped at STATE_WINDOW_CAP); malformed or non-positive -> 400.
+        import_id: measurements source; defaults to the LIVE-STREAM import.
+
+    The newest row of the window decides the state; confidence is the share
+    of window rows that fall in the same power band (same band model as
+    calibration: plant.calibration.classify_rows). A system with no stored
+    measurements answers 200 UNKNOWN so the dashboard never errors on it.
+    """
+    from plant import calibration
+    from plant import plant_sim
+
+    code = _validate_machine_code(machine_code)
+    if code is None:
+        return jsonify({'error': 'machine code must match ^[A-Z]{2,10}-\\d{1,5}$'}), 400
+
+    path = calibration.module_path(current_app.config['MACHINES_DIR'], code)
+    if not path.is_file():
+        return jsonify({'error': f'machine module not found for {code}'}), 404
+
+    window, error = _validate_positive_int(
+        request.args.get('window', STATE_WINDOW_DEFAULT), 'window')
+    if error:
+        return jsonify({'error': error}), 400
+    window = min(window, STATE_WINDOW_CAP)
+
+    raw_import = request.args.get('import_id')
+    if raw_import:
+        import_id, error = _validate_positive_int(raw_import, 'import_id')
+        if error:
+            return jsonify({'error': error}), 400
+    else:
+        import_id = queries.get_or_create_live_import()
+
+    try:
+        rows = queries.get_real_measurements(import_id, machine_code=code)
+        if not rows:
+            return jsonify({
+                'machine_code': code,
+                'state': 'UNKNOWN',
+                'power_kw': None,
+                'last_ts': None,
+                'confidence': 0,
+                'window_hours': window,
+                'import_id': import_id,
+            })
+
+        window_rows = rows[-window:]  # get_real_measurements orders by ts
+        module = json.loads(path.read_text(encoding='utf-8'))
+        classes = calibration.classify_rows(module, window_rows)
+    except calibration.CalibrationError as exc:
+        return jsonify({'error': str(exc)}), 500
+    except Exception:
+        return jsonify({'error': 'Failed to estimate machine state'}), 500
+
+    newest_class = classes[-1]
+    confidence = classes.count(newest_class) / len(classes)
+    # Prefer the module's own state NAME for the band (S4e: names are never
+    # renamed, mangled ones included); fall back to the band class name.
+    state_name = next(
+        (key for key in (module.get('work_cycles') or {})
+         if plant_sim._classify_state(key) == newest_class),
+        None,
+    )
+
+    return jsonify({
+        'machine_code': code,
+        'state': state_name if state_name else newest_class.upper(),
+        'state_key': newest_class,
+        'power_kw': window_rows[-1].get('active_power_kw'),
+        'last_ts': window_rows[-1].get('ts'),
+        'confidence': confidence,
+        'window_hours': window,
+        'import_id': import_id,
+    })
