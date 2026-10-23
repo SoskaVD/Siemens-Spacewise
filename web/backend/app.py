@@ -21,6 +21,10 @@ except ImportError:  # python-dotenv is optional: only used to read a local .env
 _current_dir = Path(__file__).parent
 if str(_current_dir) not in sys.path:
     sys.path.insert(0, str(_current_dir))
+# Repo root too: routes import the plant package (calibration) regardless of cwd
+_repo_root = _current_dir.parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 # Static dashboard (HTML/CSS/JS) served by this same Flask app at "/"
 FRONTEND_DIR = (_current_dir.parent / 'frontend').resolve()
@@ -30,12 +34,15 @@ load_dotenv(_current_dir / '.env')
 from routes import api_bp  # noqa: E402
 
 
-def create_app(db_path: str | None = None) -> Flask:
+def create_app(db_path: str | None = None,
+               machines_dir: str | None = None) -> Flask:
     """Application factory.
 
     Args:
         db_path: Optional explicit database path. If None, read from
             DATABASE_PATH env var or fall back to default location.
+        machines_dir: Optional explicit machines catalog directory. If None,
+            use repo-root/machines (consumed by the calibration endpoint).
 
     Returns:
         Configured Flask application.
@@ -44,6 +51,7 @@ def create_app(db_path: str | None = None) -> Flask:
 
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-me')
     app.config['JSON_SORT_KEYS'] = False
+    app.config['MACHINES_DIR'] = machines_dir or str(_repo_root / 'machines')
 
     # Store database path on app config so tests can override it
     if db_path is not None:

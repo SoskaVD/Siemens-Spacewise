@@ -12,7 +12,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 import queries
 
@@ -560,3 +560,75 @@ def compare_simulation(sim_id: int):
         return jsonify(queries.get_comparison(sim_id, machine, import_id))
     except Exception:
         return jsonify({'error': 'Failed to compare simulation with real data'}), 500
+
+
+@api_bp.route('/machines/<machine_code>/calibrate', methods=['POST'])
+def calibrate_machine(machine_code: str):
+    """Calibration loop (Camino A): rewrite the machine module from real data.
+
+    Query params:
+        import_id: measurements source; defaults to the LIVE-STREAM import.
+
+    Updates machines/<CODE>/machine.json in place: work-cycle shares (state
+    names preserved), load_factor, standby_pct and the schedule, derived from
+    the stored measurements. Writes machine.json.bak once (first calibration)
+    and appends an optional, MATLAB-tolerated ``_calibration`` trace block.
+    """
+    from plant import calibration
+
+    code = _validate_machine_code(machine_code)
+    if code is None:
+        return jsonify({'error': 'machine code must match ^[A-Z]{2,10}-\\d{1,5}$'}), 400
+
+    path = calibration.module_path(current_app.config['MACHINES_DIR'], code)
+    if not path.is_file():
+        return jsonify({'error': f'machine module not found for {code}'}), 404
+
+    import_id = request.args.get('import_id')
+    if import_id:
+        import_id, error = _validate_positive_int(import_id, 'import_id')
+        if error:
+            return jsonify({'error': error}), 400
+    else:
+        import_id = queries.get_or_create_live_import()
+
+    try:
+        rows = queries.get_real_measurements(import_id, machine_code=code)
+        if not rows:
+            return jsonify({
+                'error': f'no real measurements for {code} in import {import_id};'
+                         f' need at least {calibration.MIN_HOURS_FOR_CALIBRATION} hours'
+            }), 400
+
+        text = calibration.read_module(path)  # rejects garbage before any write
+        module = json.loads(text)
+        calibrated = calibration.calibrate(module, rows)
+    except calibration.CalibrationError as exc:
+        message = str(exc)
+        status = 400 if 'at least' in message else 500
+        return jsonify({'error': message}), status
+    except Exception:
+        return jsonify({'error': 'Failed to calibrate machine module'}), 500
+
+    trace = calibrated['_calibration']
+    trace['calibrated_from']['import_id'] = import_id
+    # provenance must be inside the written module, not only the response
+    try:
+        backup = path.with_suffix('.json.bak')
+        if not backup.exists():  # first calibration wins: keep the original bytes
+            backup.write_text(text, encoding='utf-8')
+        path.write_text(
+            json.dumps(calibrated, indent=2, ensure_ascii=False) + '\n',
+            encoding='utf-8',
+        )
+    except OSError:
+        return jsonify({'error': 'Failed to write calibrated machine module'}), 500
+
+    return jsonify({
+        'machine_code': code,
+        'import_id': import_id,
+        'hours_analyzed': trace['calibrated_from']['hours_analyzed'],
+        'before': trace['before'],
+        'after': trace['after'],
+        'backup': backup.name if backup.exists() else None,
+    })

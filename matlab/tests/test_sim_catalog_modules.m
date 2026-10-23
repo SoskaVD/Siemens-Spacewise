@@ -125,6 +125,35 @@ classdef test_sim_catalog_modules < matlab.unittest.TestCase
             testCase.verifyError(@() sim_catalog.load(scratchDir2), 'SIM:ModuleInvalid');
         end
 
+        function testCalibrationBlockTolerated(testCase)
+            % The web calibration loop appends an optional "_calibration" trace
+            % block to machine.json. sim_catalog only enforces REQUIRED fields,
+            % so a calibrated module must keep loading with an intact contract.
+            % "_calibration" cannot be a MATLAB struct field name, so the key
+            % is injected into the JSON text exactly as the Python writer does.
+            scratchDir = testCase.makeScratchDir('calib');
+            testCase.writeModule(scratchDir, 'ABC-001');
+            testCase.writeModule(scratchDir, 'ABC-002', ...
+                struct('load_factor', 0.52));
+            filePath = fullfile(scratchDir, 'ABC-002', 'machine.json');
+            txt = fileread(filePath);
+            traceJson = [ ...
+                ',"_calibration":{"calibrated_at":"2026-10-23T12:00:00+00:00",' ...
+                '"before":{"load_factor":0.4},"after":{"load_factor":0.52},' ...
+                '"calibrated_from":{"source":"import","import_id":7}}'];
+            assert(txt(end) == '}', 'machine.json must end with a closing brace');
+            fid = fopen(filePath, 'w');
+            testCase.verifyNotEqual(fid, -1);
+            fwrite(fid, [txt(1:end-1) traceJson '}']);
+            fclose(fid);
+
+            machines = sim_catalog.load(scratchDir);
+            testCase.verifyEqual(height(machines), 2, ...
+                'Module with _calibration block must load like any other');
+            testCase.verifyEqual(machines.load_factor(2), 0.52, ...
+                'Calibrated top-level values must flow into the catalog');
+        end
+
         function testDuplicateCodesRejected(testCase)
             % Two folders claiming the same machine_code must be rejected.
             scratchDir = testCase.makeScratchDir('dup');
