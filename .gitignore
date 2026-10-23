@@ -1,5 +1,6 @@
 # Cache files
 __pycache__/
+**/.pytest_cache/
 
 
 # Distribution / packaging
@@ -17,6 +18,7 @@ bd/
 
 # AI files
 .atl/
+odd/
 AGENTS.md
 opencode.json
 
