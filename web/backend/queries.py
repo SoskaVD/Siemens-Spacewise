@@ -476,6 +476,21 @@ def insert_import(name: str, source: str = None, notes: str = None,
         conn.close()
 
 
+def _refresh_import_bounds(conn: sqlite3.Connection, import_id: int) -> None:
+    """Recompute import_data start/end/total from the stored measurements.
+
+    Shared by the bulk-insert path and the live-ingest upsert so the header
+    bounds always describe the rows that are actually in the database.
+    """
+    conn.execute("""
+        UPDATE import_data
+        SET total_records = (SELECT COUNT(*) FROM import_measurements WHERE import_id = ?),
+            start_date = (SELECT MIN(ts) FROM import_measurements WHERE import_id = ?),
+            end_date = (SELECT MAX(ts) FROM import_measurements WHERE import_id = ?)
+        WHERE import_id = ?
+    """, (import_id, import_id, import_id, import_id))
+
+
 def bulk_insert_real_measurements(import_id: int, rows: list[dict[str, Any]],
                                   db_path: str = None) -> int:
     """Insert validated real measurements for one import, atomically.
@@ -510,18 +525,156 @@ def bulk_insert_real_measurements(import_id: int, rows: list[dict[str, Any]],
                 energy_kwh, current_a, power_factor, voltage_v, metadata_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, payload)
-        conn.execute("""
-            UPDATE import_data
-            SET total_records = (SELECT COUNT(*) FROM import_measurements WHERE import_id = ?),
-                start_date = (SELECT MIN(ts) FROM import_measurements WHERE import_id = ?),
-                end_date = (SELECT MAX(ts) FROM import_measurements WHERE import_id = ?)
-            WHERE import_id = ?
-        """, (import_id, import_id, import_id, import_id))
+        _refresh_import_bounds(conn, import_id)
         conn.execute('COMMIT')
         return len(payload)
     except Exception:
         conn.execute('ROLLBACK')
         conn.execute('DELETE FROM import_data WHERE import_id = ?', (import_id,))
+        raise
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Continuous ingestion (Camino B): the rolling "live" import.
+# Reuses import_data / import_measurements with no schema change; the table
+# has no UNIQUE constraint on (import_id, machine_code, ts), so idempotency
+# is resolved here in Python inside one transaction.
+# ---------------------------------------------------------------------------
+
+LIVE_IMPORT_CODE = 'LIVE-STREAM'
+LIVE_IMPORT_NAME = 'Live feed (hourly ingest)'
+LIVE_IMPORT_SOURCE = 'live-ingest'
+
+
+def get_or_create_live_import(db_path: str = None) -> int:
+    """Return the import_id of the single rolling live import, creating it once.
+
+    The header is identified by the fixed import_code 'LIVE-STREAM' (the
+    schema marks import_code UNIQUE), so repeated calls never duplicate it.
+    """
+    conn = get_db_connection_rw(db_path)
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute(
+            'SELECT import_id FROM import_data WHERE import_code = ?',
+            (LIVE_IMPORT_CODE,),
+        ).fetchone()
+        if row is not None:
+            import_id = row['import_id']
+        else:
+            cursor = conn.execute("""
+                INSERT INTO import_data (import_code, name, source_file, description)
+                VALUES (?, ?, ?, ?)
+            """, (LIVE_IMPORT_CODE, LIVE_IMPORT_NAME, LIVE_IMPORT_SOURCE,
+                  'Rolling import fed by POST /api/ingest/hourly'))
+            import_id = cursor.lastrowid
+        conn.execute('COMMIT')
+        return import_id
+    except Exception:
+        conn.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+
+
+def _row_values(row: dict[str, Any]) -> tuple:
+    """The five compared/stored numeric columns of one measurement row."""
+    return (row.get('active_power_kw'), row.get('energy_kwh'),
+            row.get('current_a'), row.get('power_factor'), row.get('voltage_v'))
+
+
+def upsert_real_measurements(import_id: int, rows: list[dict[str, Any]],
+                             db_path: str = None) -> dict[str, int]:
+    """Idempotently append validated measurement rows to one import.
+
+    Each row is a dict with keys: machine_code, ts, active_power_kw and the
+    optional energy_kwh, current_a, power_factor, voltage_v, metadata_json.
+    A row whose (machine_code, ts) already exists in the import UPDATEs the
+    stored values (only when they actually changed) instead of duplicating;
+    any later occurrence of the same key inside one batch overwrites the
+    earlier one. Header bounds are refreshed in the same transaction.
+
+    Returns:
+        {'inserted': n_new, 'updated': n_changed, 'unchanged': n_same,
+         'total': len(rows)}
+    """
+    inserted = updated = unchanged = 0
+    conn = get_db_connection_rw(db_path)
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        # Existing key -> (import_meas_id, values), scoped to the batch codes.
+        existing: dict[tuple[str, str], tuple[int, tuple]] = {}
+        codes = sorted({r.get('machine_code') for r in rows})
+        if codes:
+            placeholders = ', '.join('?' for _ in codes)
+            for row in conn.execute(
+                f"""
+                SELECT import_meas_id, machine_code, ts, active_power_kw,
+                       energy_kwh, current_a, power_factor, voltage_v
+                FROM import_measurements
+                WHERE import_id = ? AND machine_code IN ({placeholders})
+                """,
+                [import_id, *codes],
+            ).fetchall():
+                existing[(row['machine_code'], row['ts'])] = (
+                    row['import_meas_id'],
+                    (row['active_power_kw'], row['energy_kwh'], row['current_a'],
+                     row['power_factor'], row['voltage_v']),
+                )
+
+        for row in rows:
+            key = (row.get('machine_code'), row.get('ts'))
+            values = _row_values(row)
+            if key in existing:
+                meas_id, old_values = existing[key]
+                if old_values != values:
+                    conn.execute("""
+                        UPDATE import_measurements
+                        SET active_power_kw = ?, energy_kwh = ?, current_a = ?,
+                            power_factor = ?, voltage_v = ?, metadata_json = ?
+                        WHERE import_meas_id = ?
+                    """, (*values, row.get('metadata_json'), meas_id))
+                    existing[key] = (meas_id, values)
+                    updated += 1
+                else:
+                    unchanged += 1
+            else:
+                cursor = conn.execute("""
+                    INSERT INTO import_measurements (
+                        import_id, machine_code, ts, active_power_kw,
+                        energy_kwh, current_a, power_factor, voltage_v, metadata_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (import_id, row.get('machine_code'), row.get('ts'),
+                      *values, row.get('metadata_json')))
+                existing[key] = (cursor.lastrowid, values)
+                inserted += 1
+
+        _refresh_import_bounds(conn, import_id)
+        conn.execute('COMMIT')
+        return {'inserted': inserted, 'updated': updated,
+                'unchanged': unchanged, 'total': len(rows)}
+    except Exception:
+        conn.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+
+
+def refresh_live_import_bounds(import_id: int, db_path: str = None) -> None:
+    """Recompute the header bounds of one import from its stored rows.
+
+    Exposed for maintenance paths (e.g. after out-of-band edits); the ingest
+    upsert already refreshes the bounds inside its own transaction.
+    """
+    conn = get_db_connection_rw(db_path)
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        _refresh_import_bounds(conn, import_id)
+        conn.execute('COMMIT')
+    except Exception:
+        conn.execute('ROLLBACK')
         raise
     finally:
         conn.close()

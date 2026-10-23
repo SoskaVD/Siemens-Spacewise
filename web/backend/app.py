@@ -115,6 +115,8 @@ def _configure_queries(app: Flask) -> None:
         'insert_import', 'bulk_insert_real_measurements', 'list_imports',
         'get_import_detail', 'delete_import', 'get_real_measurements',
         'get_comparison',
+        'get_or_create_live_import', 'upsert_real_measurements',
+        'refresh_live_import_bounds',
     ]
     for name in helpers:
         original = getattr(q, name)

@@ -390,6 +390,99 @@ def import_real():
     return jsonify({'import_id': import_id, 'rows': rows_stored}), 201
 
 
+@api_bp.route('/ingest/hourly', methods=['POST'])
+def ingest_hourly():
+    """Append hourly measurements to the rolling live import (Camino B).
+
+    Body: {"records": [{"machine_code", "ts", "active_power_kw",
+    optional energy_kwh/current_a/power_factor/voltage_v}, ...]}.
+
+    Same strictness as /api/import/real, validated record by record before
+    touching the database: any invalid record returns 400 with at most 20
+    errors and nothing is written. On success the rows go to the single
+    LIVE-STREAM import, where an existing (machine_code, ts) pair is updated
+    instead of duplicated, and the answer is
+    {import_id, inserted, updated, total} with status 200.
+    """
+    body = request.get_json(silent=True)
+    if body is None or not isinstance(body, dict):
+        return jsonify({'error': 'Request body must be a JSON object'}), 400
+
+    records = body.get('records')
+    if not isinstance(records, list):
+        return jsonify({'error': "'records' must be a list"}), 400
+    if not records:
+        return jsonify({'error': 'records list is empty'}), 400
+
+    try:
+        known_codes = {m['machine_code'] for m in queries.get_all_machines()}
+    except Exception:
+        return jsonify({'error': 'Failed to load machine catalog'}), 500
+
+    errors: list[dict[str, Any]] = []
+    valid_rows: list[dict[str, Any]] = []
+
+    for index, raw in enumerate(records):
+        if not isinstance(raw, dict):
+            errors.append({'index': index, 'error': 'record must be a JSON object'})
+            continue
+        record: dict[str, Any] = {}
+
+        code = _validate_machine_code(raw.get('machine_code', ''))
+        if code is None:
+            errors.append({'index': index, 'error': 'invalid machine code format'})
+        elif code not in known_codes:
+            errors.append({'index': index,
+                           'error': f"unknown machine code '{code}'"})
+        else:
+            record['machine_code'] = code
+
+        ts = _validate_timestamp(raw.get('ts'), full=True)
+        if ts is None:
+            errors.append({'index': index,
+                           'error': 'invalid timestamp, expected YYYY-MM-DD HH:MM:SS'})
+        else:
+            record['ts'] = ts
+
+        for column in _IMPORT_CSV_REQUIRED_COLUMNS[2:] + _IMPORT_CSV_OPTIONAL_COLUMNS:
+            value = raw.get(column)
+            if column in _IMPORT_CSV_REQUIRED_COLUMNS:
+                number, error = _parse_import_float(value, column)
+            elif value is None or (isinstance(value, str) and not value.strip()):
+                number, error = None, None
+            else:
+                number, error = _parse_import_float(value, column)
+            if error:
+                errors.append({'index': index, 'error': error})
+            elif number is not None or column in _IMPORT_CSV_REQUIRED_COLUMNS:
+                record[column] = number
+
+        # Records that failed any field check are never stored, even partially.
+        if not all(k in record for k in _IMPORT_CSV_REQUIRED_COLUMNS):
+            continue
+        valid_rows.append(record)
+
+    if errors:
+        return jsonify({
+            'error': 'Ingest validation failed: nothing was stored',
+            'error_count': len(errors),
+            'errors': errors[:MAX_IMPORT_ERRORS],
+        }), 400
+
+    try:
+        import_id = queries.get_or_create_live_import()
+        result = queries.upsert_real_measurements(import_id, valid_rows)
+    except Exception:
+        return jsonify({'error': 'Failed to store measurements'}), 500
+
+    return jsonify({
+        'import_id': import_id,
+        'inserted': result['inserted'],
+        'updated': result['updated'],
+        'total': result['total'],
+    })
+
+
 @api_bp.route('/imports', methods=['GET'])
 def list_imports():
     """List real-data imports, newest first."""
