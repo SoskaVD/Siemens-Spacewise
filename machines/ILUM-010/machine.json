@@ -1,0 +1,30 @@
+{
+  "machine_code": "ILUM-010",
+  "name": "LED Cultivo Bioterio",
+  "category": "Iluminacion",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 1.2,
+  "voltage_v": 230,
+  "current_a": 5.4919908466819223,
+  "power_factor": 0.95,
+  "phases": 1,
+  "thd_pct": 10,
+  "hours_per_day": 12,
+  "days_per_week": 7,
+  "load_factor": 1,
+  "seasonal_variability": "Moderada",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 1,
+  "startup_multiplier": 1.5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

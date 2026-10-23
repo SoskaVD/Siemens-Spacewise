@@ -1,0 +1,30 @@
+{
+  "machine_code": "BOMB-010",
+  "name": "Bomba Aceite Termico",
+  "category": "Bombas",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 22,
+  "voltage_v": 400,
+  "current_a": 36.923563727243511,
+  "power_factor": 0.86,
+  "phases": 3,
+  "thd_pct": 3,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.85,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

@@ -1,0 +1,30 @@
+{
+  "machine_code": "MAN-003",
+  "name": "Prensa Hidraulica",
+  "category": "Manufactura",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 45,
+  "voltage_v": 400,
+  "current_a": 79.209640590040124,
+  "power_factor": 0.82,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 16,
+  "days_per_week": 5,
+  "load_factor": 0.6,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.72,
+    "STANDBY": 0.28
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 2,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

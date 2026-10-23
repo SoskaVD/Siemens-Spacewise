@@ -1,0 +1,30 @@
+{
+  "machine_code": "MAN-010",
+  "name": "Horno Curado UV",
+  "category": "Manufactura",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 22,
+  "voltage_v": 400,
+  "current_a": 33.425541900452018,
+  "power_factor": 0.95,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 8,
+  "days_per_week": 5,
+  "load_factor": 1,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 2,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

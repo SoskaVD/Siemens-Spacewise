@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-002",
+  "name": "Chiller Aire 30KAV",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 180,
+  "voltage_v": 400,
+  "current_a": 273.48170645824382,
+  "power_factor": 0.95,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 16,
+  "days_per_week": 6,
+  "load_factor": 0.65,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.78,
+    "STANDBY": 0.21999999999999997
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

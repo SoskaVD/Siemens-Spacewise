@@ -1,0 +1,30 @@
+{
+  "machine_code": "LAB-003",
+  "name": "Horno Mufla",
+  "category": "Laboratorios",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 6,
+  "voltage_v": 400,
+  "current_a": 8.6602540378443873,
+  "power_factor": 1,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 4,
+  "days_per_week": 3,
+  "load_factor": 0.65,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.78,
+    "STANDBY": 0.21999999999999997
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 1.5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

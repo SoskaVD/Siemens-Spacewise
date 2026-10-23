@@ -1,6 +1,6 @@
 %% load_catalog.m - Cargar catálogo de máquinas
-% Script para cargar el catálogo de máquinas industriales desde
-% docs/CATALOGO_EQUIPOS.md y mostrar información básica.
+% Script para cargar el catálogo de máquinas industriales desde los módulos
+% por carpeta machines/<CODE>/machine.json y mostrar información básica.
 %
 % Uso:
 %   run('matlab/scripts/load_catalog.m')
@@ -17,7 +17,7 @@ addpath(fullfile(rootDir, 'matlab', 'config'));
 fprintf('=== Cargando catálogo de máquinas ===\n\n');
 
 % Cargar catálogo
-fprintf('Leyendo catálogo desde: %s\n', simulacion_params.CATALOG_PATH);
+fprintf('Leyendo catálogo desde: %s\n', simulacion_params.MACHINES_DIR);
 try
     machines = sim_catalog.load();
     fprintf('✓ Catálogo cargado exitosamente\n');

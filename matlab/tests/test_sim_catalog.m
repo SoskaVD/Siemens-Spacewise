@@ -1,9 +1,10 @@
 classdef test_sim_catalog < matlab.unittest.TestCase
     %TEST_SIM_CATALOG Pruebas del parser de catálogo de equipos industriales.
-    %   Tests the catalog parser that extracts 110 machines from CATALOGO_EQUIPOS.md
+    %   Tests the catalog loader that discovers the 110 machine modules from
+    %   the folder-per-machine catalog in machines/<CODE>/machine.json
     
     properties
-        CatalogPath char
+        MachinesDir char
         OrigDir char
         RepoRoot char
     end
@@ -17,8 +18,8 @@ classdef test_sim_catalog < matlab.unittest.TestCase
             testCase.RepoRoot = fileparts(p);  % Siemens-Spacewise/
             cd(testCase.RepoRoot);
             
-            % Build absolute catalog path from repo root
-            testCase.CatalogPath = fullfile(testCase.RepoRoot, 'docs', 'CATALOGO_EQUIPOS.md');
+            % Build absolute machines dir path from repo root
+            testCase.MachinesDir = fullfile(testCase.RepoRoot, 'machines');
         end
     end
     
@@ -32,23 +33,14 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testLoadCatalog(testCase)
             % testLoadCatalog - Test that catalog loads successfully
-            % NOTE: Currently failing due to CSV parsing issue in sim_catalog.parseCSVTable
-            catalogPath = testCase.CatalogPath;
-            try
-                machines = sim_catalog.load(catalogPath);
-                testCase.assertNotEmpty(machines, 'Catalog should not be empty');
-            catch ME
-                if strcmp(ME.identifier, 'SIM:CSVNotFound')
-                    testCase.verifyFail('Known issue: CSV parser cannot find data table in catalog');
-                else
-                    rethrow(ME);
-                end
-            end
+            catalogPath = testCase.MachinesDir;
+            machines = sim_catalog.load(catalogPath);
+            testCase.assertNotEmpty(machines, 'Catalog should not be empty');
         end
         
         function testExactly110Machines(testCase)
             % testExactly110Machines - Test that exactly 110 machines are loaded
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             testCase.verifyEqual(height(machines), 110, ...
                 'Catalog should contain exactly 110 machines');
@@ -56,7 +48,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testRequiredFieldsPresent(testCase)
             % testRequiredFieldsPresent - Test all required fields are present
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             requiredFields = {'machine_code', 'name', 'category', 'rated_power_kw', ...
@@ -73,7 +65,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testDataTypesCorrect(testCase)
             % testDataTypesCorrect - Test data types are correct
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             % Numeric fields should be numeric
@@ -99,7 +91,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testCriticalityValuesValid(testCase)
             % testCriticalityValuesValid - Test criticality values are valid
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             validCriticalities = {'CRITICA', 'ESENCIAL', 'FLEXIBLE', 'NO_CRITICA'};
@@ -113,7 +105,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testWorkCyclesJsonValid(testCase)
             % testWorkCyclesJsonValid - Test work_cycles_json is valid JSON
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             for i = 1:min(10, height(machines))  % Test first 10 for speed
@@ -130,23 +122,22 @@ classdef test_sim_catalog < matlab.unittest.TestCase
             end
         end
         
-        function testErrorHandling_FileNotFound(testCase)
-            % testErrorHandling_FileNotFound - Test error when file not found
-            testCase.verifyError(@() sim_catalog.load('nonexistent_file.md'), ...
+        function testErrorHandling_DirNotFound(testCase)
+            % testErrorHandling_DirNotFound - Test error when machines dir is missing
+            testCase.verifyError(@() sim_catalog.load('nonexistent_machines_dir_xyz'), ...
                 'SIM:CatalogNotFound');
         end
         
-        function testErrorHandling_MalformedCatalog(testCase)
-            % testErrorHandling_MalformedCatalog - Test error with malformed catalog
-            % Create a temporary malformed file
-            tempFile = fullfile(tempdir, 'malformed_catalog.md');
+        function testErrorHandling_NotADirectory(testCase)
+            % testErrorHandling_NotADirectory - A plain file is not a machines dir
+            % (the markdown file must NOT be parsed at load time anymore)
+            tempFile = fullfile(tempdir, 'not_a_machines_dir.md');
             fid = fopen(tempFile, 'w');
-            fprintf(fid, '# Malformed Catalog\n');
-            fprintf(fid, 'No CSV table here\n');
+            fprintf(fid, '# Not a catalog\nHVAC-001|x|y|1|2|3|0.9|8|5|0.5|CRITICA\n');
             fclose(fid);
             
             try
-                testCase.verifyError(@() sim_catalog.load(tempFile), 'SIM:CSVNotFound');
+                testCase.verifyError(@() sim_catalog.load(tempFile), 'SIM:CatalogNotFound');
             finally
                 if exist(tempFile, 'file')
                     delete(tempFile);
@@ -156,7 +147,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testSpecificMachine_HVAC001(testCase)
             % testSpecificMachine_HVAC001 - Spot check HVAC-001 values
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             hvacIdx = find(strcmp(machines.machine_code, 'HVAC-001'));
@@ -175,7 +166,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testSpecificMachine_COMP015(testCase)
             % testSpecificMachine_COMP015 - Spot check COMP-015 exists
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             compIdx = find(strcmp(machines.machine_code, 'COMP-015'));
@@ -188,7 +179,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testSpecificMachine_MOT020(testCase)
             % testSpecificMachine_MOT020 - Spot check MOT-020 exists
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             motIdx = find(strcmp(machines.machine_code, 'MOT-020'));
@@ -201,7 +192,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testNumericRangesValid(testCase)
             % testNumericRangesValid - Test numeric values are in valid ranges
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             % Rated power should be positive
@@ -243,7 +234,7 @@ classdef test_sim_catalog < matlab.unittest.TestCase
         
         function testMachineCodesUnique(testCase)
             % testMachineCodesUnique - Test all machine codes are unique
-            catalogPath = testCase.CatalogPath;
+            catalogPath = testCase.MachinesDir;
             machines = sim_catalog.load(catalogPath);
             
             uniqueCodes = unique(machines.machine_code);

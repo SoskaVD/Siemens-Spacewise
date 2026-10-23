@@ -1,0 +1,30 @@
+{
+  "machine_code": "LAB-001",
+  "name": "Camara Memmert ICH260",
+  "category": "Laboratorios",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 1.55,
+  "voltage_v": 230,
+  "current_a": 6.8766637089618454,
+  "power_factor": 0.98,
+  "phases": 1,
+  "thd_pct": 5,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.6,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.72,
+    "STANDBY": 0.28
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 1.5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

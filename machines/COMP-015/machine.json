@@ -1,0 +1,30 @@
+{
+  "machine_code": "COMP-015",
+  "name": "Soplador Gardner Denver",
+  "category": "Compresores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 22,
+  "voltage_v": 400,
+  "current_a": 37.357958594622843,
+  "power_factor": 0.85,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 16,
+  "days_per_week": 6,
+  "load_factor": 0.75,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.89999999999999991,
+    "STANDBY": 0.10000000000000009
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

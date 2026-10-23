@@ -1,0 +1,30 @@
+{
+  "machine_code": "MOT-012",
+  "name": "Motor IE4 VFD Bomba B",
+  "category": "Motores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 2.2,
+  "voltage_v": 400,
+  "current_a": 3.342554190045202,
+  "power_factor": 0.95,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 16,
+  "days_per_week": 6,
+  "load_factor": 0.65,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.78,
+    "STANDBY": 0.21999999999999997
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

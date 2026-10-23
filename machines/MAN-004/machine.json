@@ -1,0 +1,30 @@
+{
+  "machine_code": "MAN-004",
+  "name": "Inyectora Plastico",
+  "category": "Manufactura",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 75,
+  "voltage_v": 400,
+  "current_a": 120.28130608117203,
+  "power_factor": 0.9,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 24,
+  "days_per_week": 6,
+  "load_factor": 0.7,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.84,
+    "STANDBY": 0.16000000000000003
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 2,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

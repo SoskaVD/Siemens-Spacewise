@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-004",
+  "name": "Torre Enfriamiento BAC",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 45,
+  "voltage_v": 400,
+  "current_a": 77.323696766467734,
+  "power_factor": 0.84,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.8,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.96,
+    "STANDBY": 0.040000000000000036
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

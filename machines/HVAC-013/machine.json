@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-013",
+  "name": "Rooftop Trane Voyager",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 35,
+  "voltage_v": 400,
+  "current_a": 58.066837418496846,
+  "power_factor": 0.87,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 14,
+  "days_per_week": 6,
+  "load_factor": 0.68,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.81600000000000006,
+    "STANDBY": 0.18399999999999994
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

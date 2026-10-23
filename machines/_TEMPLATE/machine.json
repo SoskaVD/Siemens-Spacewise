@@ -1,0 +1,31 @@
+{
+  "machine_code": "NEW-001",
+  "name": "Bomba Centrífugo de Ejemplo",
+  "category": "Bombas",
+  "manufacturer": "ExamplePump",
+  "model": "EP-1000",
+  "rated_power_kw": 7.5,
+  "voltage_v": 400,
+  "current_a": 14.3,
+  "power_factor": 0.85,
+  "phases": 3,
+  "thd_pct": 3.0,
+  "hours_per_day": 16,
+  "days_per_week": 5,
+  "load_factor": 0.6,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.6,
+    "PARTIAL": 0.2,
+    "STANDBY": 0.2
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 5.0,
+  "standby_pct": 2,
+  "flexibility": 0,
+  "application": "Bomba de alimentación de agua para procesos",
+  "criticality": "ESENCIAL",
+  "dependencies": "Requiere tablero eléctrico y válvula de retención",
+  "environmental_notes": "Operación en interior, sin exposición intemperie",
+  "active": 1
+}

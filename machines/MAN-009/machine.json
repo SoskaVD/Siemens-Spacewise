@@ -1,0 +1,30 @@
+{
+  "machine_code": "MAN-009",
+  "name": "Paletizadora",
+  "category": "Manufactura",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 5.5,
+  "voltage_v": 400,
+  "current_a": 9.33948964865571,
+  "power_factor": 0.85,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 16,
+  "days_per_week": 5,
+  "load_factor": 0.5,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.6,
+    "STANDBY": 0.4
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 2,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "NO_CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

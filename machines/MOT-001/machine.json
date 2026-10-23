@@ -1,0 +1,30 @@
+{
+  "machine_code": "MOT-001",
+  "name": "Motor IE3 Bomba 1",
+  "category": "Motores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 0.75,
+  "voltage_v": 400,
+  "current_a": 1.3878612240135235,
+  "power_factor": 0.78,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 16,
+  "days_per_week": 5,
+  "load_factor": 0.8,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.96,
+    "STANDBY": 0.040000000000000036
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

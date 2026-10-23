@@ -1,0 +1,30 @@
+{
+  "machine_code": "COMP-010",
+  "name": "Piston Taller Quincy",
+  "category": "Compresores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 11,
+  "voltage_v": 400,
+  "current_a": 19.129075183993628,
+  "power_factor": 0.83,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 8,
+  "days_per_week": 5,
+  "load_factor": 0.4,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.48,
+    "STANDBY": 0.52
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "NO_CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

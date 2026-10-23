@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-017",
+  "name": "Chiller Stulz CyberCool",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 90,
+  "voltage_v": 400,
+  "current_a": 147.61796655416569,
+  "power_factor": 0.88,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 16,
+  "days_per_week": 6,
+  "load_factor": 0.62,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.744,
+    "STANDBY": 0.256
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

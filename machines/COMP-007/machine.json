@@ -1,0 +1,30 @@
+{
+  "machine_code": "COMP-007",
+  "name": "Centrifugo Atlas Copco ZH",
+  "category": "Compresores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 350,
+  "voltage_v": 400,
+  "current_a": 587.42033202432856,
+  "power_factor": 0.86,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.95,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

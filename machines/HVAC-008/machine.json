@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-008",
+  "name": "VRF Mitsubishi City Multi",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 56,
+  "voltage_v": 400,
+  "current_a": 84.196914256820435,
+  "power_factor": 0.96,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 12,
+  "days_per_week": 5,
+  "load_factor": 0.55,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.66,
+    "STANDBY": 0.33999999999999997
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

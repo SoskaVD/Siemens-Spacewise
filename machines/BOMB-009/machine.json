@@ -1,0 +1,30 @@
+{
+  "machine_code": "BOMB-009",
+  "name": "Equipo Presion Lavado",
+  "category": "Bombas",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 15,
+  "voltage_v": 400,
+  "current_a": 25.17515708675694,
+  "power_factor": 0.86,
+  "phases": 3,
+  "thd_pct": 3,
+  "hours_per_day": 4,
+  "days_per_week": 5,
+  "load_factor": 0.95,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-014",
+  "name": "Climatizador Seeley",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 7.5,
+  "voltage_v": 400,
+  "current_a": 13.201606765006687,
+  "power_factor": 0.82,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 10,
+  "days_per_week": 6,
+  "load_factor": 0.7,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.84,
+    "STANDBY": 0.16000000000000003
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

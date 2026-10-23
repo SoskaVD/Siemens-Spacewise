@@ -1,0 +1,30 @@
+{
+  "machine_code": "BOMB-004",
+  "name": "Bomba KSB Caldera 2",
+  "category": "Bombas",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 18.5,
+  "voltage_v": 400,
+  "current_a": 30.692471206919759,
+  "power_factor": 0.87,
+  "phases": 3,
+  "thd_pct": 3,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.75,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.89999999999999991,
+    "STANDBY": 0.10000000000000009
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

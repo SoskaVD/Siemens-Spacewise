@@ -1,449 +1,347 @@
 classdef sim_catalog
-    %SIM_CATALOG Parser del catálogo de equipos industriales.
-    %   Extrae los 110 equipos desde docs/CATALOGO_EQUIPOS.md, combinando la
-    %   tabla resumen CSV con los datos detallados de cada sección markdown.
+    %SIM_CATALOG Cargador del catálogo modular de equipos industriales.
+    %   Autodescubrimiento por carpetas: cada máquina vive en
+    %   machines/<CODE>/machine.json. Añadir una carpeta añade una máquina;
+    %   eliminarla la quita del catálogo. Las carpetas cuyo nombre empieza
+    %   con '_' o '.' se ignoran (p. ej. machines/_TEMPLATE/).
     %
     %   Ejemplo:
     %       machines = sim_catalog.load();
     %       fprintf('Loaded %d machines\n', height(machines));
     %
+    %   Contrato: load() devuelve la tabla de 26 columnas esperada por
+    %   sim_engine, sim_machine y sim_db.ensureMachines. machine_id se
+    %   asigna secuencialmente (1..N) ordenando por machine_code ascendente.
+    %   work_cycles (objeto JSON en machine.json) se re-serializa a la
+    %   columna string work_cycles_json. 'active' omite -> 1 por defecto.
+    %
     %   Seguridad:
     %       - Sin eval()
-    %       - Validación de todos los campos numéricos
-    %       - Defaults seguros para campos faltantes
+    %       - Validación de tipos, rangos y claves requeridas por módulo
+    %         (errores SIM:ModuleInvalid que nombran la carpeta/archivo)
+    %       - machine_code debe cumplir ^[A-Z]{2,10}-\d{1,5}$ (contrato backend)
 
     methods (Static)
 
-        function machines = load(catalogPath)
-            %LOAD Carga y parsea el catálogo completo de máquinas.
-            %   machines = sim_catalog.load() usa la ruta por defecto.
-            %   machines = sim_catalog.load(path) usa una ruta específica.
-            if nargin < 1 || isempty(catalogPath)
-                catalogPath = simulacion_params.CATALOG_PATH;
+        function machines = load(machinesDir)
+            %LOAD Descubre y valida los módulos de máquina del catálogo.
+            %   machines = sim_catalog.load() usa simulacion_params.MACHINES_DIR.
+            %   machines = sim_catalog.load(dir) usa un directorio específico.
+            if nargin < 1 || isempty(machinesDir)
+                machinesDir = simulacion_params.MACHINES_DIR;
             end
-            
-            if ~exist(catalogPath, 'file')
-                error('SIM:CatalogNotFound', 'Catalog file not found: %s', catalogPath);
+
+            if ~exist(machinesDir, 'dir')
+                error('SIM:CatalogNotFound', ...
+                    'Machines directory not found: %s', machinesDir);
             end
-            
-            content = fileread(catalogPath);
-            
-            % Step 1: Parse the CSV summary table (authoritative for all 110)
-            baseTable = sim_catalog.parseCSVTable(content);
-            
-            % Step 2: Parse detailed markdown sections for enrichment
-            detailData = sim_catalog.parseDetailedSections(content);
-            
-            % Step 3: Merge and compute derived fields
-            machines = sim_catalog.mergeAndEnrich(baseTable, detailData);
+
+            folders = sim_catalog.discoverFolders(machinesDir);
+            if isempty(folders)
+                error('SIM:CatalogNotFound', ...
+                    'No machine modules found in %s (folders starting with ''_'' or ''.'' are skipped)', ...
+                    machinesDir);
+            end
+
+            % Cargar y validar cada módulo
+            modules = cell(size(folders));
+            for k = 1:numel(folders)
+                modules{k} = sim_catalog.loadModule(machinesDir, folders{k});
+            end
+
+            % Ordenar por machine_code y asignar machine_id secuencial
+            codes = cellfun(@(m) m.machine_code, modules, 'UniformOutput', false);
+            [sortedCodes, sortIdx] = sort(codes);
+            if any(strcmp(sortedCodes(1:end-1), sortedCodes(2:end)))
+                dupIdx = find(strcmp(sortedCodes(1:end-1), sortedCodes(2:end)));
+                error('SIM:ModuleInvalid', ...
+                    'Duplicate machine_code "%s" found in the machines directory', ...
+                    sortedCodes{dupIdx(1)});
+            end
+            modules = modules(sortIdx);
+
+            machines = sim_catalog.buildTable(modules);
         end
 
-        function T = parseCSVTable(content)
-            %PARSECXTABLE Extrae la tabla CSV resumen del markdown.
-            %   La tabla CSV tiene formato pipe-delimited al final del archivo.
-            
-            % Find lines with machine data (start with HVAC-, COMP-, MOT-, etc.)
-            rawLines = strsplit(content, newline);
-            
-            % Find the first data line (contains HVAC-001 or similar pattern)
-            dataStartIdx = 0;
-            for i = 1:numel(rawLines)
-                line = strtrim(rawLines{i});
-                % Check if line starts with a machine code pattern
-                if regexp(line, '^(HVAC|COMP|MOT|BOMB|ILUM|LAB|MAN|SERV|AUX)-\d{3}\|')
-                    dataStartIdx = i;
-                    break;
-                end
+    end
+
+    methods (Static, Access = private)
+
+        function folders = discoverFolders(machinesDir)
+            %DISCOVERFOLDERS Lista subcarpetas candidatas a módulo.
+            %   Omite entradas cuyo nombre empieza con '_' o '.'
+            %   (incluidos '.' y '..'), de modo que _TEMPLATE/ y las
+            %   carpetas ocultas nunca se cargan como máquinas.
+            entries = dir(machinesDir);
+            entries = entries([entries.isdir]);
+            allNames = {entries.name};
+            keep = false(size(allNames));
+            for k = 1:numel(allNames)
+                name = allNames{k};
+                keep(k) = ~isempty(name) && name(1) ~= '_' && name(1) ~= '.';
             end
-            
-            if dataStartIdx == 0
-                error('SIM:CSVNotFound', 'Could not find CSV data table in catalog');
-            end
-            
-            % Collect all data lines, joining broken lines (some have category split across lines)
-            dataLines = {};
-            accumulator = '';
-            for i = dataStartIdx:numel(rawLines)
-                line = strtrim(rawLines{i});
-                if isempty(line), continue; end
-                
-                % Stop if we hit the closing code block marker
-                if strcmp(line, '```')
-                    % Finalize the last accumulator before breaking
-                    if ~isempty(accumulator)
-                        fields = strsplit(accumulator, '|');
-                        if numel(fields) == 11
-                            dataLines{end+1} = accumulator; %#ok<AGROW>
-                        end
-                    end
-                    break;
-                end
-                
-                % Check if this is a new machine line (starts with code pattern)
-                isNewMachine = ~isempty(regexp(line, '^(HVAC|COMP|MOT|BOMB|ILUM|LAB|MAN|TI|SERV|AUX)-\d{3}\|', 'once'));
-                
-                if isNewMachine && ~isempty(accumulator)
-                    % Previous accumulator is complete, add it
-                    fields = strsplit(accumulator, '|');
-                    if numel(fields) == 11
-                        dataLines{end+1} = accumulator; %#ok<AGROW>
-                    end
-                    accumulator = line;
-                elseif isNewMachine
-                    % First machine line
-                    accumulator = line;
-                else
-                    % Continuation line, append to accumulator
-                    accumulator = [accumulator, ' ', line];
-                end
-            end
-            
-            if isempty(dataLines)
-                error('SIM:CSVNotFound', 'No valid CSV data lines found');
-            end
-            
-            % Parse each line into fields
-            nLines = numel(dataLines);
-            codes = cell(nLines, 1);
-            names = cell(nLines, 1);
-            categories = cell(nLines, 1);
-            powers = zeros(nLines, 1);
-            voltages = zeros(nLines, 1);
-            phases = zeros(nLines, 1);
-            pfs = zeros(nLines, 1);
-            hoursPerDay = zeros(nLines, 1);
-            daysPerWeek = zeros(nLines, 1);
-            loadFactors = zeros(nLines, 1);
-            criticalities = cell(nLines, 1);
-            
-            for i = 1:nLines
-                fields = strsplit(dataLines{i}, '|');
-                if numel(fields) < 11
-                    warning('SIM:MalformedCSVLine', 'Line %d has %d fields, expected 11', i, numel(fields));
-                    continue;
-                end
-                
-                codes{i} = strtrim(fields{1});
-                names{i} = strtrim(fields{2});
-                categories{i} = strtrim(fields{3});
-                powers(i) = sim_catalog.safeParseDouble(fields{4});
-                voltages(i) = sim_catalog.safeParseDouble(fields{5});
-                phases(i) = sim_catalog.safeParseDouble(fields{6});
-                pfs(i) = sim_catalog.safeParseDouble(fields{7});
-                hoursPerDay(i) = sim_catalog.safeParseDouble(fields{8});
-                daysPerWeek(i) = sim_catalog.safeParseDouble(fields{9});
-                loadFactors(i) = sim_catalog.safeParseDouble(fields{10});
-                criticalities{i} = strtrim(fields{11});
-            end
-            
-            % Remove any empty rows
-            validRows = ~cellfun('isempty', codes);
-            codes = codes(validRows);
-            names = names(validRows);
-            categories = categories(validRows);
-            powers = powers(validRows);
-            voltages = voltages(validRows);
-            phases = phases(validRows);
-            pfs = pfs(validRows);
-            hoursPerDay = hoursPerDay(validRows);
-            daysPerWeek = daysPerWeek(validRows);
-            loadFactors = loadFactors(validRows);
-            criticalities = criticalities(validRows);
-            
-            T = table(codes, names, categories, powers, voltages, phases, ...
-                pfs, hoursPerDay, daysPerWeek, loadFactors, criticalities, ...
-                'VariableNames', {'machine_code', 'name', 'raw_category', ...
-                'rated_power_kw', 'voltage_v', 'phases', 'power_factor', ...
-                'hours_per_day', 'days_per_week', 'load_factor', 'criticality'});
+            folders = allNames(keep);
         end
 
-        function details = parseDetailedSections(content)
-            %PARSEDETAILEDSECTIONS Extrae datos detallados de las secciones markdown.
-            %   Busca patrones ### CODE — Name y extrae specs, perfil, dinámica.
-            
-            % Find all section headers: ### CODE — Name
-            headerPattern = '### ([A-Z]+-\d+)\s*[—-]\s*(.+)$';
-            tokens = regexp(content, headerPattern, 'tokens', 'lineanchors');
-            
-            details = containers.Map('KeyType', 'char', 'ValueType', 'any');
-            
-            for t = 1:numel(tokens)
-                code = strtrim(tokens{t}{1});
-                name = strtrim(tokens{t}{2});
-                
-                % Extract section content (until next ### or ##)
-                sectionStart = strfind(content, ['### ', code]);
-                if isempty(sectionStart), continue; end
-                sectionStart = sectionStart(1);
-                
-                % Find end of section
-                remaining = content(sectionStart+4:end);
-                nextHeader = regexp(remaining, '\n###\s+[A-Z]+-\d+', 'once');
-                if isempty(nextHeader)
-                    nextHeader = regexp(remaining, '\n## [A-Z]', 'once');
+        function m = loadModule(machinesDir, folder)
+            %LOADMODULE Lee y valida machines/<folder>/machine.json.
+            modulePath = fullfile(machinesDir, folder);
+            jsonPath = fullfile(modulePath, 'machine.json');
+
+            if ~exist(jsonPath, 'file')
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s" is missing machine.json (expected %s)', ...
+                    folder, jsonPath);
+            end
+
+            raw = fileread(jsonPath);
+            try
+                decoded = jsondecode(raw);
+            catch ME
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": machine.json is not valid JSON (%s): %s', ...
+                    folder, jsonPath, ME.message);
+            end
+
+            if ~isstruct(decoded) || numel(decoded) ~= 1
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": machine.json (%s) must contain a single JSON object', ...
+                    folder, jsonPath);
+            end
+
+            m = sim_catalog.validateModule(decoded, folder, jsonPath);
+        end
+
+        function m = validateModule(s, folder, jsonPath)
+            %VALIDATEMODULE Verifica claves, tipos y rangos del módulo.
+            requiredFields = sim_catalog.requiredFields();
+            present = fieldnames(s);
+            missing = setdiff(requiredFields, present);
+            if ~isempty(missing)
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": machine.json (%s) missing required field(s): %s', ...
+                    folder, jsonPath, strjoin(missing, ', '));
+            end
+
+            m = s;
+
+            % --- Campos de texto ---
+            charFields = {'machine_code', 'name', 'category', 'manufacturer', ...
+                'model', 'seasonal_variability', 'application', 'criticality', ...
+                'dependencies', 'environmental_notes'};
+            nonEmptyFields = {'machine_code', 'name', 'category', ...
+                'seasonal_variability', 'criticality'};
+            for i = 1:numel(charFields)
+                f = charFields{i};
+                if ~ischar(m.(f))
+                    error('SIM:ModuleInvalid', ...
+                        'Machine folder "%s": field "%s" in %s must be a string', ...
+                        folder, f, jsonPath);
                 end
-                if isempty(nextHeader)
-                    sectionContent = remaining;
-                else
-                    sectionContent = remaining(1:nextHeader-1);
+                if any(strcmp(nonEmptyFields, f)) && isempty(m.(f))
+                    error('SIM:ModuleInvalid', ...
+                        'Machine folder "%s": field "%s" in %s must be non-empty', ...
+                        folder, f, jsonPath);
                 end
-                
-                detail = struct();
-                detail.name = name;
-                
-                % Extract manufacturer/model
-                detail.manufacturer = '';
-                detail.model = '';
-                mfrMatch = regexp(sectionContent, ...
-                    'Fabricante/Modelo\s*\|\s*([^\|]+)', 'tokens', 'once');
-                if ~isempty(mfrMatch)
-                    mfrStr = strtrim(mfrMatch{1});
-                    % Split manufacturer and model on first space
-                    spaceMatch = regexp(mfrStr, '^\s*(\S+)\s+(.*)$', 'tokens', 'once');
-                    if ~isempty(spaceMatch)
-                        detail.manufacturer = spaceMatch{1};
-                        detail.model = strtrim(spaceMatch{2});
-                    else
-                        detail.manufacturer = mfrStr;
-                    end
+            end
+
+            % machine_code: contrato del backend
+            if isempty(regexp(m.machine_code, '^[A-Z]{2,10}-\d{1,5}$', 'once'))
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": machine_code "%s" does not match ^[A-Z]{2,10}-\\d{1,5}$ (%s)', ...
+                    folder, m.machine_code, jsonPath);
+            end
+
+            % Enumeraciones de dominio
+            if ~ismember(m.category, simulacion_params.CATEGORIES)
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": category "%s" is not one of %s (%s)', ...
+                    folder, m.category, strjoin(simulacion_params.CATEGORIES, ', '), jsonPath);
+            end
+            if ~ismember(m.criticality, simulacion_params.CRITICALITY_LEVELS)
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": criticality "%s" is not one of %s (%s)', ...
+                    folder, m.criticality, strjoin(simulacion_params.CRITICALITY_LEVELS, ', '), jsonPath);
+            end
+            if ~ismember(m.seasonal_variability, {'Alta', 'Moderada', 'Baja'})
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": seasonal_variability "%s" must be Alta, Moderada or Baja (%s)', ...
+                    folder, m.seasonal_variability, jsonPath);
+            end
+
+            % --- Campos numéricos con rango ---
+            numericFields = {'rated_power_kw', 'voltage_v', 'current_a', ...
+                'power_factor', 'phases', 'thd_pct', 'hours_per_day', ...
+                'days_per_week', 'load_factor', 'startup_time_s', ...
+                'startup_multiplier', 'standby_pct', 'flexibility'};
+            for i = 1:numel(numericFields)
+                f = numericFields{i};
+                sim_catalog.validateNumericField(m.(f), f, folder, jsonPath);
+            end
+
+            % active es opcional; defecto 1
+            if ~isfield(m, 'active')
+                m.active = 1;
+            end
+            sim_catalog.validateNumericField(m.active, 'active', folder, jsonPath);
+
+            % --- work_cycles: objeto de fracciones [0,1] que suman ~1 ---
+            if ~isstruct(m.work_cycles) || isempty(fieldnames(m.work_cycles))
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": work_cycles in %s must be a JSON object of state fractions', ...
+                    folder, jsonPath);
+            end
+            wcNames = fieldnames(m.work_cycles);
+            wcSum = 0;
+            for i = 1:numel(wcNames)
+                val = m.work_cycles.(wcNames{i});
+                if ~isnumeric(val) || ~isscalar(val) || ~isfinite(val) || val < 0 || val > 1
+                    error('SIM:ModuleInvalid', ...
+                        'Machine folder "%s": work_cycles."%s" in %s must be a finite number in [0, 1]', ...
+                        folder, wcNames{i}, jsonPath);
                 end
-                
-                % Extract THD
-                detail.thd_pct = NaN;
-                thdMatch = regexp(sectionContent, ...
-                    'THD esperado\s*\|\s*([\d.]+)', 'tokens', 'once');
-                if ~isempty(thdMatch)
-                    detail.thd_pct = sim_catalog.safeParseDouble(thdMatch{1});
-                end
-                
-                % Extract current
-                detail.current_a = NaN;
-                currentMatch = regexp(sectionContent, ...
-                    'Corriente nominal\s*\|\s*([\d.]+)', 'tokens', 'once');
-                if ~isempty(currentMatch)
-                    detail.current_a = sim_catalog.safeParseDouble(currentMatch{1});
-                end
-                
-                % Extract startup behavior
-                detail.startup_time_s = NaN;
-                detail.startup_multiplier = NaN;
-                startupMatch = regexp(sectionContent, ...
-                    'Arranque[:\s]*([\d.]+)\s*s[^,]*,\s*consumo\s*([\d.]+)', ...
-                    'tokens', 'once');
-                if ~isempty(startupMatch)
-                    detail.startup_time_s = sim_catalog.safeParseDouble(startupMatch{1});
-                    detail.startup_multiplier = sim_catalog.safeParseDouble(startupMatch{2});
-                else
-                    % Try alternative format
-                    startupMatch2 = regexp(sectionContent, ...
-                        '([0-9.]+)x\s*nominal\s*\((\d+)s', 'tokens', 'once');
-                    if ~isempty(startupMatch2)
-                        detail.startup_multiplier = sim_catalog.safeParseDouble(startupMatch2{1});
-                        detail.startup_time_s = sim_catalog.safeParseDouble(startupMatch2{2});
-                    else
-                        startupMatch3 = regexp(sectionContent, ...
-                            '([0-9.]+)x\s*nominal', 'tokens', 'once');
-                        if ~isempty(startupMatch3)
-                            detail.startup_multiplier = sim_catalog.safeParseDouble(startupMatch3{1});
-                        end
-                    end
-                end
-                
-                % Extract standby
-                detail.standby_pct = NaN;
-                standbyMatch = regexp(sectionContent, ...
-                    'Standby[:\s]*(\d+)\s*%', 'tokens', 'once');
-                if ~isempty(standbyMatch)
-                    detail.standby_pct = sim_catalog.safeParseDouble(standbyMatch{1});
-                end
-                
-                % Extract flexibility
-                detail.flexibility = 0;
-                if contains(sectionContent, 'Flexibilidad') && ...
-                   (contains(sectionContent, 'sí') || contains(sectionContent, 'si'))
-                    detail.flexibility = 1;
-                end
-                
-                % Extract seasonal variability
-                detail.seasonal_variability = '';
-                if contains(sectionContent, 'Variabilidad estacional')
-                    if contains(sectionContent, 'Alta') || contains(sectionContent, 'Muy alta') || contains(sectionContent, 'Muy dependiente')
-                        detail.seasonal_variability = 'Alta';
-                    elseif contains(sectionContent, 'Moderada') || contains(sectionContent, 'Moderado')
-                        detail.seasonal_variability = 'Moderada';
-                    elseif contains(sectionContent, 'Nula') || contains(sectionContent, 'Ninguna') || contains(sectionContent, 'Constante')
-                        detail.seasonal_variability = 'Baja';
-                    else
-                        detail.seasonal_variability = 'Moderada';
-                    end
-                end
-                
-                % Extract work cycles as JSON
-                detail.work_cycles_json = '';
-                cycleMatch = regexp(sectionContent, ...
-                    'Ciclos de trabajo[:\s]*(.+?)(?:\n|$)', 'tokens', 'once');
-                if ~isempty(cycleMatch)
-                    cycleText = strtrim(cycleMatch{1});
-                    % Extract percentages
-                    pctValues = regexp(cycleText, '(\d+)\s*%', 'tokens');
-                    % Extract state names
-                    stateNames = regexp(cycleText, '([A-Za-z\s/]+?)\s*\((\d+)%\)', 'tokens');
-                    
-                    if ~isempty(stateNames)
-                        cycleStruct = struct();
-                        for s = 1:numel(stateNames)
-                            stateName = strtrim(stateNames{s}{1});
-                            statePct = str2double(stateNames{s}{2}) / 100;
-                            safeName = regexprep(stateName, '[^a-zA-Z0-9]', '_');
-                            cycleStruct.(safeName) = statePct;
-                        end
-                        detail.work_cycles_json = char(jsonencode(cycleStruct));
-                    end
-                end
-                
-                % Extract application
-                detail.application = '';
-                appMatch = regexp(sectionContent, ...
-                    'Aplicaci[oó]n t[ií]pica[:\s]*(.+?)(?:\.|$)', 'tokens', 'once');
-                if ~isempty(appMatch)
-                    detail.application = strtrim(appMatch{1});
-                end
-                
-                % Extract dependencies
-                detail.dependencies = '';
-                depMatch = regexp(sectionContent, ...
-                    'Dependencias[:\s]*(.+?)(?:\n|$)', 'tokens', 'once');
-                if ~isempty(depMatch)
-                    detail.dependencies = strtrim(depMatch{1});
-                end
-                
-                % Extract environmental notes
-                detail.environmental_notes = '';
-                envMatch = regexp(sectionContent, ...
-                    'Condiciones ambientales[:\s]*(.+?)(?:\n|$)', 'tokens', 'once');
-                if ~isempty(envMatch)
-                    detail.environmental_notes = strtrim(envMatch{1});
-                end
-                
-                details(code) = detail;
+                wcSum = wcSum + val;
+            end
+            if abs(wcSum - 1) > 0.02
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": work_cycles fractions in %s must sum to 1 (got %.4g)', ...
+                    folder, jsonPath, wcSum);
             end
         end
 
-        function machines = mergeAndEnrich(baseTable, detailData)
-            %MERGEANDENRICH Combina tabla base con datos detallados y calcula derivados.
-            n = height(baseTable);
-            
-            % Preallocate columns
+        function names = requiredFields()
+            %REQUIREDFIELDS Claves obligatorias de machine.json.
+            names = {'machine_code', 'name', 'category', 'manufacturer', 'model', ...
+                'rated_power_kw', 'voltage_v', 'current_a', 'power_factor', ...
+                'phases', 'thd_pct', 'hours_per_day', 'days_per_week', ...
+                'load_factor', 'seasonal_variability', 'work_cycles', ...
+                'startup_time_s', 'startup_multiplier', 'standby_pct', ...
+                'flexibility', 'application', 'criticality', 'dependencies', ...
+                'environmental_notes'};
+        end
+
+        function validateNumericField(val, fieldName, folder, jsonPath)
+            %VALIDATENUMERICFIELD Tipo, finiteza y rango por campo numérico.
+            if ~isnumeric(val) || ~isscalar(val) || ~isfinite(val)
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": field "%s" in %s must be a finite numeric scalar', ...
+                    folder, fieldName, jsonPath);
+            end
+            ok = true;
+            switch fieldName
+                case 'rated_power_kw'
+                    ok = val > 0;
+                case 'voltage_v'
+                    ok = val > 0;
+                case 'current_a'
+                    ok = val >= 0;
+                case 'power_factor'
+                    ok = val > 0 && val <= 1;
+                case 'phases'
+                    ok = val == floor(val) && ismember(val, [1, 2, 3]);
+                case 'thd_pct'
+                    ok = val >= 0;
+                case 'hours_per_day'
+                    ok = val >= 0 && val <= 24;
+                case 'days_per_week'
+                    ok = val >= 0 && val <= 7;
+                case 'load_factor'
+                    ok = val >= 0 && val <= 1;
+                case 'startup_time_s'
+                    ok = val >= 0;
+                case 'startup_multiplier'
+                    ok = val >= 1;
+                case 'standby_pct'
+                    ok = val >= 0 && val <= 100;
+                case {'flexibility', 'active'}
+                    ok = val == floor(val) && ismember(val, [0, 1]);
+                otherwise
+                    ok = true;
+            end
+            if ~ok
+                error('SIM:ModuleInvalid', ...
+                    'Machine folder "%s": field "%s" in %s has invalid value %.6g', ...
+                    folder, fieldName, jsonPath, val);
+            end
+        end
+
+        function machines = buildTable(modules)
+            %BUILDTABLE Construye la tabla-contrato de 26 columnas.
+            n = numel(modules);
+
             machine_ids = (1:n)';
+            codes = cell(n, 1);
+            names = cell(n, 1);
+            categories = cell(n, 1);
             manufacturers = cell(n, 1);
             models = cell(n, 1);
+            powers = zeros(n, 1);
+            voltages = zeros(n, 1);
             currents = zeros(n, 1);
+            pfs = zeros(n, 1);
+            phases = zeros(n, 1);
             thds = zeros(n, 1);
+            hoursPerDay = zeros(n, 1);
+            daysPerWeek = zeros(n, 1);
+            loadFactors = zeros(n, 1);
             seasonalVars = cell(n, 1);
             workCyclesJson = cell(n, 1);
             startupTimes = zeros(n, 1);
-            startupMults = ones(n, 1);
+            startupMults = zeros(n, 1);
             standbyPcts = zeros(n, 1);
             flexibilityFlags = zeros(n, 1);
             applications = cell(n, 1);
+            criticalities = cell(n, 1);
             dependencies = cell(n, 1);
             envNotes = cell(n, 1);
-            dbCategories = cell(n, 1);
             actives = ones(n, 1);
-            
+
             for i = 1:n
-                code = baseTable.machine_code{i};
-                
-                % Map category
-                dbCategories{i} = sim_catalog.mapCategory(baseTable.raw_category{i});
-                
-                % Lookup detailed data
-                if detailData.isKey(code)
-                    d = detailData(code);
-                    manufacturers{i} = d.manufacturer;
-                    models{i} = d.model;
-                    
-                    if ~isnan(d.current_a)
-                        currents(i) = d.current_a;
-                    else
-                        currents(i) = sim_catalog.computeCurrent( ...
-                            baseTable.rated_power_kw(i), baseTable.voltage_v(i), ...
-                            baseTable.power_factor(i), baseTable.phases(i));
-                    end
-                    
-                    if ~isnan(d.thd_pct)
-                        thds(i) = d.thd_pct;
-                    else
-                        thds(i) = sim_catalog.defaultTHD(dbCategories{i});
-                    end
-                    
-                    seasonalVars{i} = d.seasonal_variability;
-                    if isempty(seasonalVars{i})
-                        seasonalVars{i} = sim_catalog.defaultSeasonal(dbCategories{i});
-                    end
-                    
-                    workCyclesJson{i} = d.work_cycles_json;
-                    if isempty(workCyclesJson{i})
-                        workCyclesJson{i} = sim_catalog.defaultWorkCycles( ...
-                            baseTable.load_factor(i));
-                    end
-                    
-                    if ~isnan(d.startup_time_s)
-                        startupTimes(i) = d.startup_time_s;
-                    else
-                        startupTimes(i) = sim_catalog.defaultStartupTime(dbCategories{i});
-                    end
-                    
-                    if ~isnan(d.startup_multiplier)
-                        startupMults(i) = d.startup_multiplier;
-                    else
-                        startupMults(i) = sim_catalog.defaultStartupMult(dbCategories{i});
-                    end
-                    
-                    if ~isnan(d.standby_pct)
-                        standbyPcts(i) = d.standby_pct;
-                    end
-                    
-                    flexibilityFlags(i) = d.flexibility;
-                    applications{i} = d.application;
-                    dependencies{i} = d.dependencies;
-                    envNotes{i} = d.environmental_notes;
-                else
-                    % No detailed data: use defaults
-                    manufacturers{i} = '';
-                    models{i} = '';
-                    currents(i) = sim_catalog.computeCurrent( ...
-                        baseTable.rated_power_kw(i), baseTable.voltage_v(i), ...
-                        baseTable.power_factor(i), baseTable.phases(i));
-                    thds(i) = sim_catalog.defaultTHD(dbCategories{i});
-                    seasonalVars{i} = sim_catalog.defaultSeasonal(dbCategories{i});
-                    workCyclesJson{i} = sim_catalog.defaultWorkCycles( ...
-                        baseTable.load_factor(i));
-                    startupTimes(i) = sim_catalog.defaultStartupTime(dbCategories{i});
-                    startupMults(i) = sim_catalog.defaultStartupMult(dbCategories{i});
-                    applications{i} = '';
-                    dependencies{i} = '';
-                    envNotes{i} = '';
-                end
+                m = modules{i};
+                codes{i} = m.machine_code;
+                names{i} = m.name;
+                categories{i} = m.category;
+                manufacturers{i} = m.manufacturer;
+                models{i} = m.model;
+                powers(i) = m.rated_power_kw;
+                voltages(i) = m.voltage_v;
+                currents(i) = m.current_a;
+                pfs(i) = m.power_factor;
+                phases(i) = m.phases;
+                thds(i) = m.thd_pct;
+                hoursPerDay(i) = m.hours_per_day;
+                daysPerWeek(i) = m.days_per_week;
+                loadFactors(i) = m.load_factor;
+                seasonalVars{i} = m.seasonal_variability;
+                workCyclesJson{i} = char(jsonencode(m.work_cycles));
+                startupTimes(i) = m.startup_time_s;
+                startupMults(i) = m.startup_multiplier;
+                standbyPcts(i) = m.standby_pct;
+                flexibilityFlags(i) = m.flexibility;
+                applications{i} = m.application;
+                criticalities{i} = m.criticality;
+                dependencies{i} = m.dependencies;
+                envNotes{i} = m.environmental_notes;
+                actives(i) = m.active;
             end
-            
-            % Build output table matching DB schema
+
+            % Tabla de salida idéntica al contrato histórico (26 columnas)
             machines = table();
             machines.machine_id = machine_ids;
-            machines.machine_code = baseTable.machine_code;
-            machines.name = baseTable.name;
-            machines.category = dbCategories;
+            machines.machine_code = codes;
+            machines.name = names;
+            machines.category = categories;
             machines.manufacturer = manufacturers;
             machines.model = models;
-            machines.rated_power_kw = baseTable.rated_power_kw;
-            machines.voltage_v = baseTable.voltage_v;
+            machines.rated_power_kw = powers;
+            machines.voltage_v = voltages;
             machines.current_a = currents;
-            machines.power_factor = baseTable.power_factor;
-            machines.phases = int32(baseTable.phases);
+            machines.power_factor = pfs;
+            machines.phases = int32(phases);
             machines.thd_pct = thds;
-            machines.hours_per_day = baseTable.hours_per_day;
-            machines.days_per_week = baseTable.days_per_week;
-            machines.load_factor = baseTable.load_factor;
+            machines.hours_per_day = hoursPerDay;
+            machines.days_per_week = daysPerWeek;
+            machines.load_factor = loadFactors;
             machines.seasonal_variability = seasonalVars;
             machines.work_cycles_json = workCyclesJson;
             machines.startup_time_s = startupTimes;
@@ -451,171 +349,10 @@ classdef sim_catalog
             machines.standby_pct = standbyPcts;
             machines.flexibility = int32(flexibilityFlags);
             machines.application = applications;
-            machines.criticality = baseTable.criticality;
+            machines.criticality = criticalities;
             machines.dependencies = dependencies;
             machines.environmental_notes = envNotes;
             machines.active = int32(actives);
-        end
-
-    end
-
-    methods (Static, Access = private)
-
-        function val = safeParseDouble(str)
-            %SAFEPARSEDOUBLE Parsea un string a double, devuelve NaN si falla.
-            str = strtrim(str);
-            % Remove unit suffixes and annotations
-            str = regexprep(str, '\s*(kW|kw|V|A|%|h|s|d[ií]a|seg|segundos).*$', '', 'once');
-            str = regexprep(str, '[^\d.\-eE+]', '');
-            if isempty(str)
-                val = NaN;
-            else
-                val = str2double(str);
-            end
-        end
-
-        function cat = mapCategory(rawCat)
-            %MAPCATEGORY Mapea categoría del CSV a categoría de la DB.
-            rawLower = lower(rawCat);
-            if contains(rawLower, 'hvac')
-                cat = 'HVAC';
-            elseif contains(rawLower, 'compresor') || contains(rawLower, 'neumatica') || contains(rawLower, 'neumática')
-                cat = 'Compresores';
-            elseif contains(rawLower, 'motor')
-                cat = 'Motores';
-            elseif contains(rawLower, 'bomba') || contains(rawLower, 'hidraulica') || contains(rawLower, 'hidráulica')
-                cat = 'Bombas';
-            elseif contains(rawLower, 'iluminac')
-                cat = 'Iluminacion';
-            elseif contains(rawLower, 'laboratorio')
-                cat = 'Laboratorios';
-            elseif contains(rawLower, 'manufactura')
-                cat = 'Manufactura';
-            elseif contains(rawLower, 'servidor') || ~isempty(regexp(rawLower, '\bti\b', 'once'))
-                cat = 'TI';
-            elseif contains(rawLower, 'auxiliar')
-                cat = 'Auxiliares';
-            else
-                cat = 'Auxiliares';  % fallback
-            end
-        end
-
-        function current = computeCurrent(power_kw, voltage_v, pf, phases)
-            %COMPUTECURRENT Calcula corriente nominal desde potencia.
-            if voltage_v <= 0 || pf <= 0
-                current = 0;
-                return;
-            end
-            power_w = power_kw * 1000;
-            if phases >= 3
-                current = power_w / (sqrt(3) * voltage_v * pf);
-            else
-                current = power_w / (voltage_v * pf);
-            end
-        end
-
-        function thd = defaultTHD(category)
-            %DEFAULTTHD Devuelve THD por defecto según categoría.
-            switch category
-                case 'HVAC'
-                    thd = 10.0;
-                case 'Compresores'
-                    thd = 5.0;
-                case 'Motores'
-                    thd = 5.0;
-                case 'Bombas'
-                    thd = 3.0;
-                case 'Iluminacion'
-                    thd = 10.0;
-                case 'Laboratorios'
-                    thd = 5.0;
-                case 'Manufactura'
-                    thd = 10.0;
-                case 'TI'
-                    thd = 5.0;
-                otherwise
-                    thd = 5.0;
-            end
-        end
-
-        function sv = defaultSeasonal(category)
-            %DEFAULTSEASONAL Devuelve variabilidad estacional por defecto.
-            switch category
-                case 'HVAC'
-                    sv = 'Alta';
-                case 'Compresores'
-                    sv = 'Baja';
-                case 'Motores'
-                    sv = 'Baja';
-                case 'Bombas'
-                    sv = 'Baja';
-                case 'Iluminacion'
-                    sv = 'Moderada';
-                case 'Laboratorios'
-                    sv = 'Baja';
-                case 'Manufactura'
-                    sv = 'Baja';
-                case 'TI'
-                    sv = 'Baja';
-                otherwise
-                    sv = 'Baja';
-            end
-        end
-
-        function json = defaultWorkCycles(loadFactor)
-            %DEFAULTWORKCYCLES Genera JSON de ciclos de trabajo por defecto.
-            running = min(loadFactor * 1.2, 1.0);
-            standby = 1.0 - running;
-            cycleStruct = struct('RUNNING', running, 'STANDBY', standby);
-            json = char(jsonencode(cycleStruct));
-        end
-
-        function t = defaultStartupTime(category)
-            %DEFAULTSTARTUPTIME Tiempo de arranque por defecto (segundos).
-            switch category
-                case 'HVAC'
-                    t = 30;
-                case 'Compresores'
-                    t = 10;
-                case 'Motores'
-                    t = 10;
-                case 'Bombas'
-                    t = 5;
-                case 'Iluminacion'
-                    t = 1;
-                case 'Laboratorios'
-                    t = 5;
-                case 'Manufactura'
-                    t = 10;
-                case 'TI'
-                    t = 2;
-                otherwise
-                    t = 5;
-            end
-        end
-
-        function m = defaultStartupMult(category)
-            %DEFAULTSTARTUPMULT Multiplicador de arranque por defecto.
-            switch category
-                case 'HVAC'
-                    m = 4.0;
-                case 'Compresores'
-                    m = 5.0;
-                case 'Motores'
-                    m = 5.0;
-                case 'Bombas'
-                    m = 5.0;
-                case 'Iluminacion'
-                    m = 1.5;
-                case 'Laboratorios'
-                    m = 1.5;
-                case 'Manufactura'
-                    m = 2.0;
-                case 'TI'
-                    m = 1.2;
-                otherwise
-                    m = 3.0;
-            end
         end
 
     end

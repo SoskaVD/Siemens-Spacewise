@@ -1,0 +1,30 @@
+{
+  "machine_code": "AUX-003",
+  "name": "Cinta Transportadora",
+  "category": "Auxiliares",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 4,
+  "voltage_v": 400,
+  "current_a": 6.7923561081132444,
+  "power_factor": 0.85,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 16,
+  "days_per_week": 6,
+  "load_factor": 0.7,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.84,
+    "STANDBY": 0.16000000000000003
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 3,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-015",
+  "name": "Deshumectador Munters",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 28,
+  "voltage_v": 400,
+  "current_a": 44.411559168432753,
+  "power_factor": 0.91,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.82,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.98399999999999987,
+    "STANDBY": 0.016000000000000125
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

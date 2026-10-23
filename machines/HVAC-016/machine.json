@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-016",
+  "name": "Extractora Ex Systemair",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 18.5,
+  "voltage_v": 400,
+  "current_a": 31.414647000023756,
+  "power_factor": 0.85,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.78,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.93599999999999994,
+    "STANDBY": 0.064000000000000057
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

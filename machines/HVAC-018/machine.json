@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-018",
+  "name": "Geotermia WaterFurnace",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 42,
+  "voltage_v": 400,
+  "current_a": 68.114357601023272,
+  "power_factor": 0.89,
+  "phases": 3,
+  "thd_pct": 10,
+  "hours_per_day": 12,
+  "days_per_week": 7,
+  "load_factor": 0.58,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.696,
+    "STANDBY": 0.30400000000000005
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

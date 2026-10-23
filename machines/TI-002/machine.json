@@ -1,0 +1,30 @@
+{
+  "machine_code": "TI-002",
+  "name": "Rack Telecom",
+  "category": "TI",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 5,
+  "voltage_v": 230,
+  "current_a": 22.182786157941436,
+  "power_factor": 0.98,
+  "phases": 1,
+  "thd_pct": 5,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.7,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.84,
+    "STANDBY": 0.16000000000000003
+  },
+  "startup_time_s": 2,
+  "startup_multiplier": 1.2,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

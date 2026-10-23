@@ -1,0 +1,30 @@
+{
+  "machine_code": "ILUM-002",
+  "name": "LED HighBay Almacen",
+  "category": "Iluminacion",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 2,
+  "voltage_v": 230,
+  "current_a": 9.1533180778032044,
+  "power_factor": 0.95,
+  "phases": 1,
+  "thd_pct": 10,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.4,
+  "seasonal_variability": "Moderada",
+  "work_cycles": {
+    "RUNNING": 0.48,
+    "STANDBY": 0.52
+  },
+  "startup_time_s": 1,
+  "startup_multiplier": 1.5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

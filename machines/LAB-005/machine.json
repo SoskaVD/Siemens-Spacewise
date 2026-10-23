@@ -1,0 +1,30 @@
+{
+  "machine_code": "LAB-005",
+  "name": "Campana Extraccion",
+  "category": "Laboratorios",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 1.5,
+  "voltage_v": 230,
+  "current_a": 8.1521739130434785,
+  "power_factor": 0.8,
+  "phases": 1,
+  "thd_pct": 5,
+  "hours_per_day": 10,
+  "days_per_week": 5,
+  "load_factor": 0.9,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 1.5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

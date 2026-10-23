@@ -1,0 +1,30 @@
+{
+  "machine_code": "ILUM-005",
+  "name": "Sodio HPS Patio",
+  "category": "Iluminacion",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 8,
+  "voltage_v": 230,
+  "current_a": 40.92071611253197,
+  "power_factor": 0.85,
+  "phases": 1,
+  "thd_pct": 10,
+  "hours_per_day": 12,
+  "days_per_week": 7,
+  "load_factor": 1,
+  "seasonal_variability": "Moderada",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 1,
+  "startup_multiplier": 1.5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

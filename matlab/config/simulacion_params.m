@@ -19,8 +19,9 @@ classdef simulacion_params
         
         % Rutas
         DB_PATH = 'data/spacewise.db';
-        CATALOG_PATH = 'docs/CATALOGO_EQUIPOS.md';
+        CATALOG_PATH = 'docs/CATALOGO_EQUIPOS.md';  % Solo referencia histórica / migración
         SCHEMA_PATH = 'data/schema_simulator.sql';
+        MACHINES_DIR = 'machines';  % Catálogo modular: machines/<CODE>/machine.json
         
         % Categorías de máquinas
         CATEGORIES = {'HVAC', 'Compresores', 'Motores', 'Bombas', ...

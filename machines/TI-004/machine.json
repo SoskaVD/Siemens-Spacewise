@@ -1,0 +1,30 @@
+{
+  "machine_code": "TI-004",
+  "name": "Storage SAN NAS",
+  "category": "TI",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 3.5,
+  "voltage_v": 230,
+  "current_a": 15.527950310559007,
+  "power_factor": 0.98,
+  "phases": 1,
+  "thd_pct": 5,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.9,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 2,
+  "startup_multiplier": 1.2,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

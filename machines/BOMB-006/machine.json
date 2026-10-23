@@ -1,0 +1,30 @@
+{
+  "machine_code": "BOMB-006",
+  "name": "Bomba Sulzer Condens",
+  "category": "Bombas",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 30,
+  "voltage_v": 400,
+  "current_a": 50.35031417351388,
+  "power_factor": 0.86,
+  "phases": 3,
+  "thd_pct": 3,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.8,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.96,
+    "STANDBY": 0.040000000000000036
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

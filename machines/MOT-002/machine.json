@@ -1,0 +1,30 @@
+{
+  "machine_code": "MOT-002",
+  "name": "Motor IE3 Extractor",
+  "category": "Motores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 1.5,
+  "voltage_v": 400,
+  "current_a": 2.7063293868263707,
+  "power_factor": 0.8,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 16,
+  "days_per_week": 5,
+  "load_factor": 0.7,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.84,
+    "STANDBY": 0.16000000000000003
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

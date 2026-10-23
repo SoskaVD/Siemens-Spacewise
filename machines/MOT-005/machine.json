@@ -1,0 +1,30 @@
+{
+  "machine_code": "MOT-005",
+  "name": "Motor IE3 Ventilador",
+  "category": "Motores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 11,
+  "voltage_v": 400,
+  "current_a": 18.461781863621756,
+  "power_factor": 0.86,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.9,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

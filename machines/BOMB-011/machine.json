@@ -1,0 +1,30 @@
+{
+  "machine_code": "BOMB-011",
+  "name": "Bomba Trasiego Fuel",
+  "category": "Bombas",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 4,
+  "voltage_v": 400,
+  "current_a": 7.0408569413369,
+  "power_factor": 0.82,
+  "phases": 3,
+  "thd_pct": 3,
+  "hours_per_day": 2,
+  "days_per_week": 5,
+  "load_factor": 0.8,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.96,
+    "STANDBY": 0.040000000000000036
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "NO_CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

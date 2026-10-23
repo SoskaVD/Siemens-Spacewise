@@ -1,0 +1,30 @@
+{
+  "machine_code": "AUX-005",
+  "name": "Compactadora Residuos",
+  "category": "Auxiliares",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 5.5,
+  "voltage_v": 400,
+  "current_a": 9.9232077516966921,
+  "power_factor": 0.8,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 2,
+  "days_per_week": 5,
+  "load_factor": 0.8,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.96,
+    "STANDBY": 0.040000000000000036
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 3,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

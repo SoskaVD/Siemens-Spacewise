@@ -1,0 +1,31 @@
+{
+  "machine_code": "HVAC-001",
+  "name": "Chiller Centrifugo CVHE",
+  "category": "HVAC",
+  "manufacturer": "Trane",
+  "model": "CenTraVac CVHE",
+  "rated_power_kw": 350,
+  "voltage_v": 400,
+  "current_a": 595,
+  "power_factor": 0.85,
+  "phases": 3,
+  "thd_pct": 18,
+  "hours_per_day": 24,
+  "days_per_week": 7,
+  "load_factor": 0.75,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "n_plena": 0.3,
+    "n_parcial": 0.6,
+    "Standby": 0.1
+  },
+  "startup_time_s": 60,
+  "startup_multiplier": 4,
+  "standby_pct": 5,
+  "flexibility": 0,
+  "application": "Planta central de agua helada para refrigeración de procesos",
+  "criticality": "CRITICA",
+  "dependencies": "Requiere bombas primarias y torres de enfriamiento.",
+  "environmental_notes": "El consumo aumenta drásticamente con la temperatura del bulbo húmedo exterior.",
+  "active": 1
+}

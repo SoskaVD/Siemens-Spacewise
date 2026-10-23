@@ -1,0 +1,30 @@
+{
+  "machine_code": "HVAC-011",
+  "name": "Fan Coil Carrier 42CT",
+  "category": "HVAC",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 2.2,
+  "voltage_v": 230,
+  "current_a": 10.869565217391305,
+  "power_factor": 0.88,
+  "phases": 1,
+  "thd_pct": 10,
+  "hours_per_day": 12,
+  "days_per_week": 5,
+  "load_factor": 0.65,
+  "seasonal_variability": "Alta",
+  "work_cycles": {
+    "RUNNING": 0.78,
+    "STANDBY": 0.21999999999999997
+  },
+  "startup_time_s": 30,
+  "startup_multiplier": 4,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "NO_CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

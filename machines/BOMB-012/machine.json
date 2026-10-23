@@ -1,0 +1,30 @@
+{
+  "machine_code": "BOMB-012",
+  "name": "Bomba Lobulos Wangen",
+  "category": "Bombas",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 15,
+  "voltage_v": 400,
+  "current_a": 25.471335405424668,
+  "power_factor": 0.85,
+  "phases": 3,
+  "thd_pct": 3,
+  "hours_per_day": 16,
+  "days_per_week": 6,
+  "load_factor": 0.9,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "ESENCIAL",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

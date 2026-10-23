@@ -1,0 +1,30 @@
+{
+  "machine_code": "AUX-002",
+  "name": "Montacargas Hidraulico",
+  "category": "Auxiliares",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 22,
+  "voltage_v": 400,
+  "current_a": 38.724713177352946,
+  "power_factor": 0.82,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 24,
+  "days_per_week": 6,
+  "load_factor": 0.15,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 0.18,
+    "STANDBY": 0.82000000000000006
+  },
+  "startup_time_s": 5,
+  "startup_multiplier": 3,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "FLEXIBLE",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}

@@ -1,0 +1,30 @@
+{
+  "machine_code": "MOT-009",
+  "name": "Motor IE3 Trituradora",
+  "category": "Motores",
+  "manufacturer": "",
+  "model": "",
+  "rated_power_kw": 160,
+  "voltage_v": 400,
+  "current_a": 259.4832670515172,
+  "power_factor": 0.89,
+  "phases": 3,
+  "thd_pct": 5,
+  "hours_per_day": 16,
+  "days_per_week": 5,
+  "load_factor": 0.85,
+  "seasonal_variability": "Baja",
+  "work_cycles": {
+    "RUNNING": 1,
+    "STANDBY": 0
+  },
+  "startup_time_s": 10,
+  "startup_multiplier": 5,
+  "standby_pct": 0,
+  "flexibility": 0,
+  "application": "",
+  "criticality": "CRITICA",
+  "dependencies": "",
+  "environmental_notes": "",
+  "active": 1
+}
