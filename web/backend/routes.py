@@ -600,13 +600,15 @@ def calibrate_machine(machine_code: str):
                          f' need at least {calibration.MIN_HOURS_FOR_CALIBRATION} hours'
             }), 400
 
-        text = calibration.read_module(path)  # rejects garbage before any write
-        module = json.loads(text)
+        calibration.read_module(path)  # rejects garbage before any write
+        module = json.loads(path.read_text(encoding='utf-8'))
         calibrated = calibration.calibrate(module, rows)
+    except calibration.InsufficientMeasurementsError as exc:
+        # Machine-readable discriminator (verifier B1): data cannot drive the
+        # loop -> 400, never 500 via message-text sniffing.
+        return jsonify({'error': str(exc)}), 400
     except calibration.CalibrationError as exc:
-        message = str(exc)
-        status = 400 if 'at least' in message else 500
-        return jsonify({'error': message}), status
+        return jsonify({'error': str(exc)}), 500
     except Exception:
         return jsonify({'error': 'Failed to calibrate machine module'}), 500
 
@@ -615,8 +617,10 @@ def calibrate_machine(machine_code: str):
     # provenance must be inside the written module, not only the response
     try:
         backup = path.with_suffix('.json.bak')
-        if not backup.exists():  # first calibration wins: keep the original bytes
-            backup.write_text(text, encoding='utf-8')
+        if not backup.exists():
+            # first calibration wins: keep the ORIGINAL bytes exactly
+            # (verifier A3: raw read/write so a CRLF module stays CRLF)
+            backup.write_bytes(path.read_bytes())
         path.write_text(
             json.dumps(calibrated, indent=2, ensure_ascii=False) + '\n',
             encoding='utf-8',

@@ -54,6 +54,14 @@ class CalibrationError(ValueError):
     """Raised when measurements or the module make calibration impossible."""
 
 
+class InsufficientMeasurementsError(CalibrationError):
+    """Machine-readable class for 400 responses: data cannot drive calibration.
+
+    Carried as a distinct exception type instead of substring-sniffing the
+    message text (verifier B1: all-zero imports previously fell to 500).
+    """
+
+
 def expected_levels(machine: dict) -> dict[str, float]:
     """Expected metered power per band, derived from the module's prior model.
 
@@ -127,7 +135,7 @@ def calibrate(machine: dict, rows: list[dict]) -> dict:
         raise CalibrationError("machine module has no work_cycles")
 
     if len(rows) < MIN_HOURS_FOR_CALIBRATION:
-        raise CalibrationError(
+        raise InsufficientMeasurementsError(
             f"need at least {MIN_HOURS_FOR_CALIBRATION} hours of measurements,"
             f" got {len(rows)}"
         )
@@ -143,14 +151,22 @@ def calibrate(machine: dict, rows: list[dict]) -> dict:
 
     unknown_keys, state_class = _calibratable_states(work_cycles)
     prior = {key: float(work_cycles[key]) for key in work_cycles}
-    unknown_prior_sum = sum(prior[key] for key in unknown_keys)
+    # Keys that calibration cannot re-estimate — unknown names and explicit
+    # OFF states — keep their prior share, and that share is taken OUT of the
+    # budget the measured bands can spend (verifier A1: without the off-class
+    # term, drift correction silently zeroed an OFF prior).
+    fixed_prior_sum = sum(
+        prior[key] for key, klass in state_class.items() if klass == "off"
+    ) + sum(prior[key] for key in unknown_keys)
 
-    # Distribute the (1 - unknown_prior_sum) budget across measured bands,
+    # Distribute the (1 - fixed_prior_sum) budget across measured bands,
     # per class, proportionally to prior within the same class.
-    calibratable_budget = 1.0 - unknown_prior_sum
+    calibratable_budget = 1.0 - fixed_prior_sum
     active_share = measured["standby"] + measured["partial"] + measured["running"]
     if active_share <= 0:
-        raise CalibrationError("measurements never show the machine consuming power")
+        raise InsufficientMeasurementsError(
+            "measurements never show the machine consuming power"
+        )
 
     new_cycles: dict[str, float] = {}
     for key in unknown_keys:
