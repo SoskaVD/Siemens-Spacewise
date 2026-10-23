@@ -176,14 +176,32 @@ class TestGroundTruthDeviation:
         )
 
     def test_measured_running_power_above_prior_estimate(self):
-        """RUNNING/PARTIAL power = rated * load_factor * degradation(1.05..1.25)."""
+        """RUNNING power = rated * load_factor * degradation(1.05..1.25)."""
         machine = _make_machine(rated_power_kw=100.0, load_factor=0.5)
         rows = plant_sim.generate_series(machine, START, HOURS)
-        active = [r for r in rows if r["state"] in ("RUNNING", "PARTIAL")]
+        active = [r for r in rows if r["state"] == "RUNNING"]
         assert active
         for row in active:
             # noise sigma is 2% of the value, so stay inside a tolerant band
             assert 100.0 * 0.5 * 1.0 <= row["active_power_kw"] <= 100.0 * 0.5 * 1.25 * 1.10
+
+    def test_partial_load_measured_below_running(self):
+        """PARTIAL is metered at partial_fraction (~0.65) of the RUNNING level.
+
+        Power-band separation lets calibration recover the PARTIAL share from
+        measurements alone; identical levels would collapse both states into
+        one estimated band.
+        """
+        machine = _make_machine(rated_power_kw=100.0, load_factor=0.5)
+        rows = plant_sim.generate_series(machine, START, HOURS)
+        running = [r["active_power_kw"] for r in rows if r["state"] == "RUNNING"]
+        partial = [r["active_power_kw"] for r in rows if r["state"] == "PARTIAL"]
+        assert running and partial, "series must contain both states"
+        med_run = sorted(running)[len(running) // 2]
+        med_par = sorted(partial)[len(partial) // 2]
+        assert 0.5 * med_run <= med_par <= 0.8 * med_run, (
+            f"PARTIAL median {med_par} not inside 0.5-0.8 of RUNNING median {med_run}"
+        )
 
 
 class TestCatalogAndCsv:

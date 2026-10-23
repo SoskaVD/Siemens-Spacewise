@@ -38,6 +38,7 @@ DEFAULT_MACHINES_DIR = _REPO_ROOT / "machines"
 # Power-model constants (documented in the module docstring).
 _NOISE_SIGMA_FRACTION = 0.02
 _DEGRADATION_RANGE = (1.05, 1.25)
+_PARTIAL_FRACTION = 0.65
 _SHARE_DRIFT = 0.35
 _OUTAGE_LENGTH_RANGE = (2, 6)
 
@@ -65,8 +66,10 @@ def _classify_state(name: str) -> str:
         return "standby"
     if lowered == "off":
         return "off"
-    # RUNNING/PARTIAL and mangled active states (e.g. n_plena, n_parcial)
-    # share the same active-power model.
+    # Partial-load states (incl. mangled n_parcial) meter at a distinct band;
+    # full/other active states (e.g. n_plena) share the RUNNING model.
+    if "partial" in lowered or "parcial" in lowered:
+        return "partial"
     return "running"
 
 
@@ -212,9 +215,14 @@ def generate_series(machine: dict, start_dt: datetime, hours: int) -> list:
         elif klass == "standby":
             ideal = standby_kw
         else:
-            # RUNNING and PARTIAL share the same measured level by design:
-            # rated * load_factor * seeded degradation (task contract, spec S1).
+            # RUNNING = rated * load_factor * seeded degradation; PARTIAL is
+            # metered at _PARTIAL_FRACTION of that level so power-band
+            # classification can recover the PARTIAL share from measurements
+            # alone (identical levels would collapse both states into one
+            # band, leaving calibration blind to it).
             ideal = rated * load_factor * degradation
+            if klass == "partial":
+                ideal *= _PARTIAL_FRACTION
 
         # Startup surge on OFF -> active transitions (hourly resolution).
         is_off = state == "OFF"
