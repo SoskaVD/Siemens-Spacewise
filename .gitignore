@@ -30,3 +30,43 @@ opencode.json
 data/logs/
 data/export/
 data/last_update.txt
+
+# Runtime artifacts of the twin calibration loop (regenerable, machine-local)
+**/machine.json.bak
+
+# Python virtualenv (each member creates their own)
+.venv/
+
+# SQLite sidecar files
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Logs anywhere
+*.log
+
+# MATLAB autosaves and session artifacts
+*.asv
+*.mat
+
+# Test / type / lint caches
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging leftovers
+*.egg-info/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor junk
+.vscode/
+.idea/
+
+# Misc
+nohup.out
+*.tmp

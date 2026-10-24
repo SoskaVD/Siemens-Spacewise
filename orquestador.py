@@ -9,6 +9,10 @@ Modos de ejecución:
     full:       Igual que continuous y además abre el dashboard en el navegador
                 (modo por defecto).
 
+Los defaults de --mode y --interval pueden fijarse en el archivo .env de la
+raíz con las variables MODE y SIM_INTERVAL (la línea de comando gana siempre).
+Ver .env.example para todas las variables.
+
 En continuous/full el orquestador:
     1. crea data/spacewise.db con el esquema si todavía no existe,
     2. lanza la simulación continua en MATLAB (se reinicia sola si falla; la
@@ -57,8 +61,11 @@ DB_PATH = DATA_DIR / "spacewise.db"
 SCHEMA_PATH = DATA_DIR / "schema_simulator.sql"
 LOG_DIR = DATA_DIR / "logs"
 
-HOST = "127.0.0.1"
+HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "5000"))
+# Defaults de ejecución: la línea de comando gana sobre estas variables de .env.
+MODE = os.getenv("MODE", "full").strip() or "full"
+SIM_INTERVAL = os.getenv("SIM_INTERVAL", "2")
 MAX_MATLAB_RESTARTS = 3
 
 
@@ -404,15 +411,17 @@ def main() -> int:
     parser.add_argument(
         "--mode",
         choices=["once", "continuous", "full"],
-        default="full",
+        default=MODE,
         help="Modo de ejecución: 'once' (una sola vez), 'continuous' (continuo + dashboard), "
-             "'full' (continuo + dashboard + navegador). Default: full",
+             "'full' (continuo + dashboard + navegador). Default: variable MODE del .env, "
+             "o 'full' si no está definida",
     )
     parser.add_argument(
         "--interval",
         type=int,
-        default=2,
-        help="Segundos de tiempo real entre cada hora simulada (default: 2)",
+        default=int(SIM_INTERVAL),
+        help="Segundos de tiempo real entre cada hora simulada (default: variable "
+             "SIM_INTERVAL del .env, o 2 si no está definida)",
     )
     parser.add_argument(
         "--no-browser",
@@ -422,8 +431,9 @@ def main() -> int:
     parser.add_argument(
         "--timeout",
         type=int,
-        default=3600,
-        help="Tiempo máximo de la corrida en segundos para modo 'once' (default: 3600)",
+        default=int(os.getenv("ONCE_TIMEOUT", "3600")),
+        help="Tiempo máximo de la corrida en segundos para modo 'once' "
+             "(default: variable ONCE_TIMEOUT del .env, o 3600)",
     )
     args = parser.parse_args()
 
