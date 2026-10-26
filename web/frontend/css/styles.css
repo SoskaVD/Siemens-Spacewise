@@ -104,9 +104,9 @@ header {
    ============================================ */
 main {
     flex: 1;
-    max-width: 1500px;
+    max-width: 100%;
     margin: 0 auto;
-    padding: var(--spacing-lg) var(--spacing-md);
+    padding: var(--spacing-lg) var(--spacing-xl);
     width: 100%;
 }
 
@@ -740,7 +740,7 @@ input:focus {
    ============================================ */
 .content-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: minmax(0, 1fr) 420px;
     gap: var(--spacing-lg);
     align-items: start;
 }
@@ -750,10 +750,13 @@ input:focus {
     min-width: 0;
 }
 
+/* Rail del asistente: ocupa toda la altura visible y se queda fijo al hacer
+   scroll, llenando la columna derecha en lugar de dejarla vacía. */
 .content-side {
     position: sticky;
     top: var(--spacing-sm);
     align-self: start;
+    height: calc(100vh - 2 * var(--spacing-sm));
 }
 
 /* ============================================
@@ -767,7 +770,7 @@ input:focus {
     padding: var(--spacing-md);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 2 * var(--spacing-sm));
+    height: 100%;
 }
 
 .assistant-panel h2 {
@@ -940,12 +943,14 @@ input:focus {
     }
     .content-side {
         position: static;
+        height: auto;
     }
     .assistant-panel {
-        max-height: none;
+        height: auto;
     }
     .assistant-chat {
         max-height: 60vh;
+        min-height: 300px;
     }
 }
 

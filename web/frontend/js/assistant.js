@@ -79,6 +79,14 @@
         sendEl.textContent = state ? 'Pensando…' : 'Preguntar';
     }
 
+    function showWelcome() {
+        const wrap = addMessage('assistant',
+            '¡Hola! Soy tu asistente de energía. Pregúntame sobre el consumo, ' +
+            'los costos, proyecciones o escenarios "¿y si…?" de cualquier ' +
+            'máquina o de toda la planta. Usa los botones de arriba para empezar.');
+        wrap.classList.add('assistant-msg-welcome');
+    }
+
     async function refreshHealth() {
         if (!healthEl || !window.API) return;
         const health = await window.API.assistantHealth();
@@ -130,5 +138,6 @@
         });
     }
 
+    showWelcome();
     refreshHealth();
 })();
