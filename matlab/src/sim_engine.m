@@ -220,12 +220,16 @@ classdef sim_engine
                 startHour = 0;
                 if ~isempty(existing) && (strcmp(existing.status{1}, 'RUNNING') || strcmp(existing.status{1}, 'PAUSED'))
                     sim_id = existing.simulation_id;
-                    % Resume from last hour
+                    % Resume from last hour. COALESCE(-1): MAX() sobre un
+                    % conjunto vacio devuelve NULL y el fetch JDBC de MATLAB
+                    % aborta antes de que cualquier isnan() pueda correr
+                    % (crash historico de la simulacion 3). -1 equivale a
+                    % "sin horas guardadas" y mapea a startHour 0.
                     sql2 = sprintf(...
-                        'SELECT MAX(hour_index) as max_hour FROM machine_measurements WHERE simulation_id = %d', ...
+                        'SELECT COALESCE(MAX(hour_index), -1) as max_hour FROM machine_measurements WHERE simulation_id = %d', ...
                         sim_id);
                     result = conn.fetch(sql2);
-                    if isempty(result) || isnan(result.max_hour)
+                    if isempty(result)
                         startHour = 0;
                     else
                         startHour = result.max_hour + 1;
@@ -265,7 +269,10 @@ classdef sim_engine
                     profile = sim_machine.generate(machines(i,:), seed, startDate);
                     profile.machine_id = repmat(int32(machines.machine_id(i)), height(profile), 1);
                     profile.machine_code = repmat(machines.machine_code(i), height(profile), 1);
-                    profile.category = repmat(machines.category{i}, height(profile), 1);
+                    % repmat de un char produce matriz de char (el table guarda una
+                    % columna char); el bucle de emision hace row.category{1}, que
+                    % exige cellstr — reproducir como celda por fila.
+                    profile.category = repmat({machines.category{i}}, height(profile), 1);
                     profiles{i} = profile;
                 end
                 fprintf('         All profiles generated\n');
@@ -404,7 +411,10 @@ classdef sim_engine
                 if exist('conn', 'var') && ~isempty(conn) && conn.isopen
                     try
                         if sim_id > 0
-                            sim_db.updateSimulationStatus(conn, sim_id, 'STOPPED', ME.message);
+                            % PAUSED (no STOPPED): es el estado que el chequeo
+                            % de resume acepta — 'STOPPED' hacia del mensaje
+                            % "can be resumed" una promesa incumplible.
+                            sim_db.updateSimulationStatus(conn, sim_id, 'PAUSED', ME.message);
                         end
                         sim_db.close(conn);
                     catch

@@ -65,8 +65,13 @@ classdef sim_machine
             workCycles = sim_machine.parseWorkCycles(machine.work_cycles_json);
             
             % Generate timestamps
+            % Formato ISO 'yyyy-MM-dd HH:mm:ss' EXPLICITO: el default de
+            % char()/string(datetime) produce '01-Jan-2026 HH:MM:SS', que no
+            % casa con el contrato de ts del backend (compare alinea por ts
+            % exacto contra el formato del CSV/feed) ni con el parseo del
+            % propio test_sim_machine.
             for h = 0:H-1
-                ts(h+1) = char(startDate + hours(h));
+                ts(h+1) = string(startDate + hours(h), "yyyy-MM-dd HH:mm:ss");
             end
             
             % Generate hourly profiles

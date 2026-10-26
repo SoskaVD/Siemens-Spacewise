@@ -9,6 +9,16 @@ classdef sim_analysis
 
     methods (Static)
 
+        function catNames = getCategoryNames()
+            %GETCATEGORYNAMES Devuelve nombres de categorías en orden.
+            %   PUBLICO: sim_engine.runContinuous lo necesita para el desglose
+            %   por categoría. Era private y el acceso desde fuera de la clase
+            %   abortaba la simulación continua en su primera hora emitida.
+            catNames = {'HVAC', 'Compresores', 'Motores', 'Bombas', ...
+                        'Iluminacion', 'Laboratorios', 'Manufactura', ...
+                        'TI', 'Auxiliares'};
+        end
+
         function totals = calculateHourlyTotals(allMeasurements)
             %CALCULATEHOURLYTOTALES Agrega mediciones por hora.
             %   totals = sim_analysis.calculateHourlyTotals(allMeasurements)
@@ -313,13 +323,6 @@ classdef sim_analysis
     end
 
     methods (Static, Access = private)
-
-        function catNames = getCategoryNames()
-            %GETCATEGORYNAMES Devuelve nombres de categorías en orden.
-            catNames = {'HVAC', 'Compresores', 'Motores', 'Bombas', ...
-                        'Iluminacion', 'Laboratorios', 'Manufactura', ...
-                        'TI', 'Auxiliares'};
-        end
 
         function months = extractMonth(tsArray)
             %EXTRACTMONTH Extrae mes (1-12) de array de timestamps.
