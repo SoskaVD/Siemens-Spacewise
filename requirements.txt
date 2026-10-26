@@ -16,3 +16,8 @@ python-dotenv>=1.0
 
 # Pruebas
 pytest>=8.0
+
+# Asistente IA: habla con Ollama por su API REST local (localhost:11434) usando
+# solo la librería estándar de Python, así que NO requiere paquetes extra.
+# El modelo corre en Ollama (local o cloud); instálalo aparte y ejecuta
+# `ollama signin` para el modelo cloud gratuito gemma4:cloud.

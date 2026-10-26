@@ -724,3 +724,98 @@ def machine_state(machine_code: str):
         'window_hours': window,
         'import_id': import_id,
     })
+
+
+# ---------------------------------------------------------------------------
+# Energy assistant (Ollama): natural-language questions, forecasts, scenarios.
+# The model only reads data through read-only tools; it never mutates the twin.
+# ---------------------------------------------------------------------------
+
+# Guardrails on the request so a huge payload can't be forwarded to the model.
+MAX_ASSISTANT_MESSAGE = 2000
+MAX_ASSISTANT_HISTORY = 20
+
+
+def _build_assistant():
+    """Construct an AssistantClient wired to the real data + app config."""
+    from assistant import AssistantClient, Toolbox
+
+    cfg = current_app.config
+    toolbox = Toolbox(
+        queries,  # the db_path-wrapped module (see app._configure_queries)
+        machines_dir=cfg['MACHINES_DIR'],
+        price_kwh=cfg.get('PRICE_KWH', 0.0),
+        currency=cfg.get('CURRENCY', 'USD'),
+    )
+    return AssistantClient(
+        toolbox,
+        host=cfg.get('OLLAMA_HOST', 'http://127.0.0.1:11434'),
+        model=cfg.get('OLLAMA_MODEL', 'gemma4:cloud'),
+        timeout=cfg.get('OLLAMA_TIMEOUT', 120.0),
+    )
+
+
+def _clean_history(raw) -> list[dict]:
+    """Keep only well-formed {role, content} user/assistant turns, most recent."""
+    if not isinstance(raw, list):
+        return []
+    cleaned = []
+    for turn in raw[-MAX_ASSISTANT_HISTORY:]:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get('role')
+        content = turn.get('content')
+        if role in ('user', 'assistant') and isinstance(content, str) and content.strip():
+            cleaned.append({'role': role, 'content': content[:MAX_ASSISTANT_MESSAGE]})
+    return cleaned
+
+
+@api_bp.route('/assistant/chat', methods=['POST'])
+def assistant_chat():
+    """Answer a natural-language question about the twin's energy data.
+
+    Body: ``{"message": "...", "history": [{"role","content"}, ...]}``. The
+    reply is grounded in read-only tools; ``tool_calls`` lists exactly which
+    tools ran so the UI can show what the answer is based on.
+    """
+    from assistant import OllamaError, OllamaUnavailable
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'body must be JSON with a "message" field'}), 400
+    message = payload.get('message')
+    if not isinstance(message, str) or not message.strip():
+        return jsonify({'error': 'message is required'}), 400
+    if len(message) > MAX_ASSISTANT_MESSAGE:
+        return jsonify({'error': f'message too long (max {MAX_ASSISTANT_MESSAGE} chars)'}), 400
+
+    history = _clean_history(payload.get('history'))
+
+    try:
+        result = _build_assistant().chat(message.strip(), history)
+    except OllamaUnavailable as exc:
+        # Ollama not running / not signed in: degrade with a clear 503.
+        return jsonify({'error': str(exc), 'available': False}), 503
+    except OllamaError as exc:
+        return jsonify({'error': str(exc)}), 502
+    except Exception:
+        return jsonify({'error': 'assistant failed to answer'}), 500
+
+    return jsonify(result)
+
+
+@api_bp.route('/assistant/health', methods=['GET'])
+def assistant_health():
+    """Report whether the Ollama backend is reachable (no model call, no cost)."""
+    import urllib.error
+    import urllib.request
+
+    cfg = current_app.config
+    host = cfg.get('OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+    info = {'model': cfg.get('OLLAMA_MODEL'), 'host': host}
+    try:
+        with urllib.request.urlopen(f'{host}/api/version', timeout=5) as resp:
+            version = json.loads(resp.read().decode('utf-8')).get('version')
+        return jsonify({**info, 'available': True, 'ollama_version': version})
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return jsonify({**info, 'available': False}), 503

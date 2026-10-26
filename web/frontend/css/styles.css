@@ -104,7 +104,7 @@ header {
    ============================================ */
 main {
     flex: 1;
-    max-width: 1400px;
+    max-width: 1500px;
     margin: 0 auto;
     padding: var(--spacing-lg) var(--spacing-md);
     width: 100%;
@@ -209,14 +209,16 @@ main {
     background: var(--surface-color);
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    border-top: 3px solid var(--primary-color);
     box-shadow: var(--shadow-sm);
     text-align: center;
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
 }
 
 .kpi-card h3 {
@@ -253,7 +255,13 @@ main {
     background: var(--surface-color);
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s;
+}
+
+.chart-wrapper:hover {
+    box-shadow: var(--shadow-md);
 }
 
 .chart-wrapper h2 {
@@ -261,6 +269,8 @@ main {
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: var(--spacing-md);
+    padding-left: var(--spacing-xs);
+    border-left: 4px solid var(--primary-color);
 }
 
 .chart-row {
@@ -285,6 +295,7 @@ canvas {
     background: var(--surface-color);
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
     margin-top: var(--spacing-lg);
 }
@@ -428,9 +439,11 @@ canvas {
 .twin-panel {
     background-color: var(--surface-color);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
     padding: var(--spacing-md);
-    margin-bottom: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    margin-bottom: 0;
 }
 
 .twin-panel h2 {
@@ -723,6 +736,230 @@ input:focus {
 }
 
 /* ============================================
+   Layout de dos columnas (contenido + asistente)
+   ============================================ */
+.content-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: var(--spacing-lg);
+    align-items: start;
+}
+
+/* min-width:0 evita que los charts desborden la columna del grid */
+.content-main {
+    min-width: 0;
+}
+
+.content-side {
+    position: sticky;
+    top: var(--spacing-sm);
+    align-self: start;
+}
+
+/* ============================================
+   Asistente IA
+   ============================================ */
+.assistant-panel {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2 * var(--spacing-sm));
+}
+
+.assistant-panel h2 {
+    color: var(--primary-dark);
+    margin-bottom: var(--spacing-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.assistant-panel h2::before {
+    content: "✦";
+    color: var(--primary-color);
+}
+
+.assistant-subtitle {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+.assistant-health-row {
+    margin-bottom: var(--spacing-sm);
+}
+
+.assistant-health {
+    display: inline-block;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    padding: 0.15rem 0.6rem;
+    border-radius: var(--radius-lg);
+    background: var(--bg-color);
+}
+
+.assistant-health.ok { color: var(--success-color); }
+.assistant-health.down { color: var(--error-color); }
+
+.assistant-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+}
+
+.assistant-suggestions button {
+    background: transparent;
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    border-radius: var(--radius-lg);
+    padding: 0.35rem 0.75rem;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.assistant-suggestions button:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.assistant-chat {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-color);
+    min-height: 240px;
+}
+
+.assistant-msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 85%;
+}
+
+.assistant-msg-user {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.assistant-msg-assistant {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.assistant-bubble {
+    padding: 0.6rem 0.85rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.assistant-msg-user .assistant-bubble {
+    background: var(--primary-color);
+    color: #fff;
+    border-bottom-right-radius: 2px;
+}
+
+.assistant-msg-assistant .assistant-bubble {
+    background: var(--surface-color);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-bottom-left-radius: 2px;
+}
+
+.assistant-msg-error .assistant-bubble {
+    background: rgba(244, 67, 54, 0.1);
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+.assistant-tools {
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.assistant-tool-chip {
+    background: var(--secondary-color);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    padding: 0.1rem 0.45rem;
+    font-size: 0.72rem;
+}
+
+.assistant-form {
+    display: flex;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+}
+
+.assistant-form input {
+    flex: 1;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+}
+
+.assistant-form button {
+    background: var(--primary-color);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 0 1.25rem;
+    font-size: var(--font-size-base);
+    cursor: pointer;
+}
+
+.assistant-form button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Pantallas medianas/estrechas: el asistente pasa debajo del contenido */
+@media (max-width: 980px) {
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+    .content-side {
+        position: static;
+    }
+    .assistant-panel {
+        max-height: none;
+    }
+    .assistant-chat {
+        max-height: 60vh;
+    }
+}
+
+@media (max-width: 600px) {
+    .assistant-msg { max-width: 95%; }
+    main {
+        padding: var(--spacing-md) var(--spacing-sm);
+    }
+    .content-grid {
+        gap: var(--spacing-md);
+    }
+}
+
+/* ============================================
    Print Styles
    ============================================ */
 @media print {
@@ -733,7 +970,7 @@ input:focus {
     .error-message {
         display: none !important;
     }
-    
+
     .chart-wrapper {
         page-break-inside: avoid;
         box-shadow: none;

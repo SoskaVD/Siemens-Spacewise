@@ -70,6 +70,9 @@
             </div>
         </section>
 
+        <div class="content-grid">
+          <div class="content-main">
+
         <section class="charts-container" aria-label="Visualizaciones">
             <div class="chart-wrapper">
                 <h2>Consumo Horario (8760 horas)</h2>
@@ -151,10 +154,43 @@
             <p id="twin-status" class="twin-status" role="status" aria-live="polite"></p>
         </section>
 
-        <div id="error-display" class="error-message" role="alert" aria-live="assertive"></div>
-        <div id="loading-indicator" class="loading" aria-live="polite">
-            <span>Cargando datos...</span>
-        </div>
+            <div id="error-display" class="error-message" role="alert" aria-live="assertive"></div>
+            <div id="loading-indicator" class="loading" aria-live="polite">
+                <span>Cargando datos...</span>
+            </div>
+
+          </div><!-- /content-main -->
+
+          <aside class="content-side">
+            <section class="assistant-panel" aria-label="Asistente de energía con IA">
+                <h2>Asistente IA</h2>
+                <p class="assistant-subtitle">
+                    Pregunta en lenguaje natural sobre consumo, costos,
+                    proyecciones y escenarios. Las cifras provienen siempre de los
+                    datos reales, nunca inventadas.
+                </p>
+                <p class="assistant-health-row">
+                    <span class="assistant-health" id="assistant-health">Verificando IA…</span>
+                </p>
+
+                <div class="assistant-suggestions" id="assistant-suggestions">
+                    <button type="button" data-q="¿Cuánto consumió la planta en total y cuánto costó?">Consumo total y costo</button>
+                    <button type="button" data-q="¿Cuáles son las 5 máquinas que más energía gastan?">Top 5 consumidores</button>
+                    <button type="button" data-q="Proyecta el consumo y el costo de toda la planta para los próximos 30 días.">Proyección a 30 días</button>
+                    <button type="button" data-q="¿Cuánto ahorraría si HVAC-001 trabajara 4 horas menos al día?">Escenario de ahorro</button>
+                </div>
+
+                <div class="assistant-chat" id="assistant-chat" aria-live="polite"></div>
+
+                <form class="assistant-form" id="assistant-form">
+                    <input type="text" id="assistant-input" autocomplete="off"
+                           maxlength="2000" placeholder="Escribe tu pregunta…"
+                           aria-label="Pregunta para el asistente">
+                    <button type="submit" id="assistant-send">Preguntar</button>
+                </form>
+            </section>
+          </aside>
+        </div><!-- /content-grid -->
     </main>
 
     <footer>
@@ -163,6 +199,7 @@
 
     <script src="js/api.js"></script>
     <script src="js/charts.js"></script>
+    <script src="js/assistant.js"></script>
     <script>
         // Initialize application
         const API_BASE = window.location.origin.includes('5500') || window.location.origin.includes('8000')

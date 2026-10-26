@@ -34,6 +34,15 @@ load_dotenv(_current_dir / '.env')
 from routes import api_bp  # noqa: E402
 
 
+def _env_float(name: str, default: float) -> float:
+    """Read a float env var, falling back to default on empty/garbage."""
+    try:
+        raw = os.getenv(name, '')
+        return float(raw) if raw.strip() else default
+    except (TypeError, ValueError):
+        return default
+
+
 def create_app(db_path: str | None = None,
                machines_dir: str | None = None) -> Flask:
     """Application factory.
@@ -52,6 +61,15 @@ def create_app(db_path: str | None = None,
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-me')
     app.config['JSON_SORT_KEYS'] = False
     app.config['MACHINES_DIR'] = machines_dir or str(_repo_root / 'machines')
+
+    # Energy assistant (Ollama) config. All optional; defaults use the local
+    # Ollama server and the only model in Ollama's free plan (gemma4:cloud).
+    app.config['OLLAMA_HOST'] = os.getenv('OLLAMA_HOST', 'http://127.0.0.1:11434')
+    app.config['OLLAMA_MODEL'] = os.getenv('OLLAMA_MODEL', 'gemma4:cloud')
+    app.config['OLLAMA_TIMEOUT'] = _env_float('OLLAMA_TIMEOUT', 120.0)
+    # Price per kWh turns energy figures into money; currency is just a label.
+    app.config['PRICE_KWH'] = _env_float('PRECIO_KWH', 0.0)
+    app.config['CURRENCY'] = os.getenv('CURRENCY', 'USD')
 
     # Store database path on app config so tests can override it
     if db_path is not None:

@@ -226,6 +226,32 @@ const API = {
         return this.request(`/machines/${encodeURIComponent(code)}/calibrate`, {
             method: 'POST'
         });
+    },
+
+    /**
+     * Ask the energy assistant a natural-language question (POST /api/assistant/chat).
+     * @param {string} message - The user's question
+     * @param {Array<{role:string, content:string}>} [history] - Prior turns
+     * @returns {Promise<{reply:string, tool_calls:Array, model:string, rounds:number}>}
+     */
+    async askAssistant(message, history) {
+        return this.request('/assistant/chat', {
+            method: 'POST',
+            body: JSON.stringify({ message, history: history || [] }),
+        });
+    },
+
+    /**
+     * Check whether the Ollama backend is reachable (GET /api/assistant/health).
+     * Never throws: returns {available:false,...} when the server/model is down.
+     * @returns {Promise<{available:boolean, model:string, ollama_version?:string}>}
+     */
+    async assistantHealth() {
+        try {
+            return await this.request('/assistant/health');
+        } catch (error) {
+            return { available: false, error: error.message };
+        }
     }
 };
 

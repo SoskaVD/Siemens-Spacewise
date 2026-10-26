@@ -38,6 +38,11 @@ Dos niveles conviven en el sistema:
 El canal de ingesta es el mismo para datos reales y sintéticos: no hay
 supuestos de laboratorio en el backend.
 
+Sobre estos datos corre un **Asistente IA** (Ollama): responde preguntas,
+proyecta consumo/costo y evalúa escenarios "¿y si…?" en lenguaje natural. El
+modelo solo razona; cada cifra proviene de herramientas de lectura que corren
+Python contra la misma base de datos, así que nunca inventa números.
+
 ---
 
 ## 2. Requisitos
@@ -104,6 +109,11 @@ Siemens-Spacewise/
 │   ├── feed_loop.py              # Runner que stream-ea la planta al API (como un medidor)
 │   └── demo_closed_loop.py       # Demo end-to-end: ingesta → calibra → MAPE diario baja
 │
+├── assistant/                    # Asistente de energía con IA (Ollama)
+│   ├── client.py                 # Chat con Ollama (REST local, stdlib) + bucle de herramientas
+│   ├── tools.py                  # Catálogo de herramientas SOLO LECTURA (reutiliza queries.py)
+│   └── forecast.py               # Matemática pura: proyección, escenarios, anomalías
+│
 ├── web/
 │   ├── backend/
 │   │   ├── app.py                # Fábrica Flask: config, .env, db_path, estáticos
@@ -116,19 +126,22 @@ Siemens-Spacewise/
 │   │       ├── test_ingest.py            # Ingesta continua (LIVE-STREAM, idempotencia)
 │   │       ├── test_calibrate.py         # Lazo de calibración (ground-truth recovery)
 │   │       ├── test_calibrate_edges.py   # Bordes: sin potencia, OFF-keys, .bak byte-exacto
-│   │       └── test_state.py             # Estado estimado por bandas + ventana
+│   │       ├── test_state.py             # Estado estimado por bandas + ventana
+│   │       └── test_assistant_api.py     # Endpoints del asistente (validación, errores, health)
 │   └── frontend/
-│       ├── index.html            # Dashboard: 3 charts + Simulado vs Real + panel Gemelo
+│       ├── index.html            # Dashboard: 3 charts + Simulado vs Real + Gemelo + Asistente IA
 │       ├── js/
 │       │   ├── api.js            # Cliente REST del dashboard
-│       │   └── charts.js         # Renderers Chart.js (hourly, categorías, top, comparación)
+│       │   ├── charts.js         # Renderers Chart.js (hourly, categorías, top, comparación)
+│       │   └── assistant.js      # Panel del Asistente IA (chat + chips de herramientas usadas)
 │       └── css/
 │           └── styles.css        # Estilos del panel
 │
 ├── tests/                        # Suite de raíz (Python puro)
 │   ├── test_integration.py       # Pipeline MATLAB end-to-end (init_db→export_results)
 │   ├── test_plant_sim.py         # Contratos de la planta sintética
-│   └── test_feed_loop.py         # Runner de ingesta + demo de lazo cerrado
+│   ├── test_feed_loop.py         # Runner de ingesta + demo de lazo cerrado
+│   └── test_assistant.py         # Asistente IA: forecast puro + herramientas + bucle de chat
 │
 ├── data/                         # (generados en runtime, fuera de git)
 │   ├── schema_simulator.sql      # Esquema canónico de la BD (sí versionado)
@@ -183,6 +196,11 @@ versionado). Todo es opcional; los valores por defecto funcionan tal cual.
 | `MODE` | `full` | Modo por defecto del orquestador: `once` / `continuous` / `full` |
 | `SIM_INTERVAL` | `2` | Segundos reales entre hora simulada (modo continuo; se propaga a MATLAB) |
 | `ONCE_TIMEOUT` | `3600` | Timeout del pipeline `once`, en segundos |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Servidor Ollama que usa el Asistente IA |
+| `OLLAMA_MODEL` | `gemma4:cloud` | Modelo del asistente (único gratis de Ollama Cloud; cambiar si agregas créditos) |
+| `OLLAMA_TIMEOUT` | `120` | Segundos de espera por respuesta del modelo |
+| `PRECIO_KWH` | `0.0` | Precio por kWh para estimar costos (0 = solo energía) |
+| `CURRENCY` | `USD` | Etiqueta de moneda que reporta el asistente |
 
 Los parámetros del motor de simulación (seed default, rutas internas,
 constantes físicas) viven en `matlab/config/simulacion_params.m`.
@@ -282,6 +300,19 @@ devuelven `{"error": "..."}` con código de estado acorde, sin stack traces.
 | `GET /machines/<code>/state?window=48&import_id=<n>` | **Estado actual estimado**: clasifica las últimas N horas medidas (cap 168) en bandas de potencia derivadas del modelo del módulo (OFF/STANDBY/PARTIAL/RUNNING) y responde la banda de la hora más reciente, `power_kw`, `last_ts`, `confidence` y el nombre de estado real del módulo. Sin datos: `state: "UNKNOWN"` (el dashboard degrada sin errores). |
 | `POST /machines/<code>/calibrate?import_id=<n>` | **Lazo de calibración**: reescribe `machines/<CODE>/machine.json` a partir de las mediciones — shares de `work_cycles` (los nombres nunca se renombran), `load_factor`, `standby_pct`, `hours_per_day`, `days_per_week`. Protecciones: `machine.json.bak` con los bytes originales (solo la primera calibración), traza `_calibration` con `before/after` y `calibrated_from {import_id, start_ts, end_ts, hours_analyzed}`, mínimo 24 horas de datos, rechazo de módulo roto **antes** de escribir. Sin `import_id` calibra contra `LIVE-STREAM`. Respuesta: `200 {machine_code, import_id, hours_analyzed, before, after}`; `400` sin datos suficientes, `404` sin módulo, `500` con módulo inválido (archivo intacto). Tras calibrar, re-simular para ver el modelo corregido en `compare`. |
 
+### Asistente IA (Ollama)
+
+| Endpoint | Descripción |
+|---|---|
+| `POST /assistant/chat` | Pregunta en lenguaje natural. Body `{"message": "...", "history": [{role, content}, …]}`. El modelo responde **solo con cifras obtenidas de herramientas de lectura** (nunca inventadas) y devuelve `{reply, tool_calls, model, rounds}`, donde `tool_calls` lista exactamente qué herramientas se ejecutaron. Si Ollama no está disponible: `503 {available:false}`; error del modelo: `502`. |
+| `GET /assistant/health` | Indica si el backend de Ollama responde (`{available, model, ollama_version}`), sin invocar al modelo (no gasta cuota). |
+
+Herramientas que el asistente puede usar (todas de **solo lectura**; calibración
+e ingesta quedan fuera de su alcance a propósito): `listar_simulaciones`,
+`resumen_energetico`, `top_consumidores`, `detalle_maquina`,
+`comparar_real_vs_simulado`, `proyectar_consumo`, `simular_escenario`,
+`detectar_anomalias`, `estado_actual_maquina`.
+
 ### Salud
 
 | Endpoint | Descripción |
@@ -302,14 +333,35 @@ devuelven `{"error": "..."}` con código de estado acorde, sin stack traces.
 5. **Gemelo (lazo cerrado)**: selector de máquina, badge de estado actual en
    vivo (banda + potencia + confianza) y botón *Calibrar con datos reales* con
    resumen antes → después.
+6. **Asistente IA**: chat en lenguaje natural para consultas, costos,
+   proyecciones y escenarios "¿y si…?". Cada respuesta muestra chips con las
+   herramientas que usó, y un indicador avisa si la IA no está disponible.
+
+### Asistente IA — requisitos y funcionamiento
+
+- **Requisito único**: [Ollama](https://ollama.com) instalado y con sesión
+  iniciada una vez (`ollama signin`). El modelo por defecto `gemma4:cloud` corre
+  en la nube de Ollama (plan gratuito) y soporta llamadas a herramientas. **No
+  hay dependencias de pip nuevas**: el cliente habla con Ollama por su API REST
+  local (`localhost:11434`) usando solo la librería estándar.
+- **La IA no inventa números**: todas las cifras (consumo, costo, MAPE, estado,
+  proyección, ahorro) las calcula código Python en herramientas de **solo
+  lectura**; el modelo solo decide qué herramienta llamar e interpreta el
+  resultado en español. Las operaciones que modifican el sistema (calibración,
+  ingesta) **no** se exponen al modelo.
+- **Costo**: para que el asistente reporte dinero y no solo kWh, define
+  `PRECIO_KWH` en el `.env` (p. ej. `PRECIO_KWH=0.15`).
+- Para cambiar de modelo (p. ej. tras agregar créditos a Ollama), solo edita
+  `OLLAMA_MODEL` en el `.env`.
 
 ## 10. Testing
 
 ```bash
 # Python (única fuente de verdad rápida; usa el .venv del repo)
 .venv/bin/python -m pytest web/backend/tests tests -q -k "not TestIntegration"
-#   → 138 passed, 5 deselected (backend 113: api, dashboard, imports, ingest,
-#      calibrate, edges, state; raíz: planta sintética, feed loop y demo de lazo)
+#   → 172 passed, 9 deselected (backend: api, dashboard, imports, ingest,
+#      calibrate, edges, state, assistant-api; raíz: planta sintética, feed loop,
+#      demo de lazo y asistente IA)
 
 # Tests MATLAB (suites puras de catálogo/perfiles: 44 verdes)
 cd matlab/tests
